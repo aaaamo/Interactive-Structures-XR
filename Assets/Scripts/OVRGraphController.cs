@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab }
+    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze }
     public Mode currentMode = Mode.AddNode;
 
     [Header("References")]
@@ -267,87 +267,6 @@ public class OVRGraphController : MonoBehaviour
     }
 
 
-    //void HandleAddLoad()
-    //{
-    //    if (firstLoadNode == null)
-    //    {
-    //        // STEP 1: select starting node
-    //        NodeBehaviour node = GetNodeAtMarker();
-    //        if (node == null) return;
-
-    //        firstLoadNode = node;
-
-    //        // Spawn temporary load at node
-    //        tempLoad = graphManager.CreateLoad(firstLoadNode, Vector3.down, 1f);
-    //        tempLoad.transform.SetParent(firstLoadNode.transform, true);
-    //        tempLoad.transform.localPosition = Vector3.zero;
-    //        tempLoad.UpdateArrow();
-    //    }
-    //    else
-    //    {
-    //        // STEP 2: finalize load
-    //        Vector3 dir = markerTransform.position - firstLoadNode.transform.position;
-    //        float mag = Mathf.Max(dir.magnitude, 0.05f);
-
-    //        tempLoad.SetDirection(dir.normalized);
-    //        tempLoad.SetMagnitude(mag);
-
-    //        firstLoadNode.loads.Add(tempLoad);
-
-    //        // Reset for next load
-    //        firstLoadNode = null;
-    //        tempLoad = null;
-    //    }
-    //}
-
-
-    //void HandleAddLoad()
-    //{
-    //    // STEP 1 — Select starting node if we don't have one yet
-    //    NodeBehaviour node = GetNodeAtMarker();
-    //    if (firstLoadNode == null)
-    //    {
-    //        if (node == null) return; // must start from a node
-    //        firstLoadNode = node;
-
-    //        // Create temporary load visual but parent it later
-    //        tempLoad = graphManager.CreateLoad(firstLoadNode, Vector3.up, 1f);
-    //        tempLoad.transform.SetParent(firstLoadNode.transform);
-
-    //        return;
-    //    }
-
-    //    // STEP 2 — Second click finalizes the load direction
-    //    Vector3 direction = markerTransform.position - firstLoadNode.transform.position;
-    //    float magnitude = direction.magnitude;
-    //    direction.Normalize();
-
-    //    tempLoad.direction = direction;
-    //    tempLoad.magnitude = magnitude;
-
-    //    tempLoad.transform.rotation = Quaternion.LookRotation(direction);
-    //    tempLoad.transform.localScale = Vector3.one * Mathf.Clamp(magnitude, 0.05f, 1.0f);
-
-    //    // ✅ Register load in node list
-    //    firstLoadNode.loads.Add(tempLoad);
-
-    //    firstLoadNode = null;
-    //    tempLoad = null;
-    //}
-
-
-    //void HandleAddLoad()
-    //{
-    //    NodeBehaviour node = GetNodeAtMarker();
-    //    if (node == null) return;
-
-    //    Vector3 dir = markerTransform.position - node.transform.position;
-    //    float magnitude = 1.0f;
-
-    //    graphManager.CreateLoad(node, dir, magnitude);
-    //}
-
-
     void UpdateTemporaryEdge()
     {
         if (tempEdge != null && firstSelectedNode != null && markerTransform != null)
@@ -365,18 +284,6 @@ public class OVRGraphController : MonoBehaviour
         tempLoad.SetDirection(dir.normalized);
         tempLoad.SetMagnitude(mag);
     }
-
-    //void UpdateTemporaryLoad()
-    //{
-    //    if (firstLoadNode != null && tempLoad != null)
-    //    {
-    //        Vector3 direction = markerTransform.position - firstLoadNode.transform.position;
-    //        float magnitude = direction.magnitude;
-
-    //        tempLoad.transform.rotation = Quaternion.LookRotation(direction);
-    //        tempLoad.transform.localScale = Vector3.one * Mathf.Clamp(magnitude, 0.05f, 1.0f);
-    //    }
-    //}
 
 
     NodeBehaviour GetNodeAtMarker()

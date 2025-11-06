@@ -79,59 +79,6 @@ public class GraphManager : MonoBehaviour
         return load;
     }
 
-    //public LoadBehaviour CreateLoad(NodeBehaviour node, Vector3 direction, float magnitude)
-    //{
-    //    if (loadPrefab == null)
-    //    {
-    //        Debug.LogError("Load prefab not assigned!");
-    //        return null;
-    //    }
-
-    //    GameObject loadObj = Instantiate(loadPrefab, Vector3.zero, Quaternion.identity);
-
-    //    // Parent the load to the node so it moves with it
-    //    loadObj.transform.SetParent(node.transform);
-
-    //    LoadBehaviour load = loadObj.GetComponent<LoadBehaviour>();
-    //    if (load == null)
-    //    {
-    //        Debug.LogError("Load prefab missing LoadBehaviour script!");
-    //        return null;
-    //    }
-
-    //    // Assign values
-    //    load.node = node;
-    //    load.direction = direction.normalized;
-    //    load.magnitude = magnitude;
-
-    //    // Track in node list
-    //    node.loads.Add(load);
-
-    //    // Apply arrow direction & length visually
-    //    load.transform.rotation = Quaternion.LookRotation(load.direction);
-    //    load.transform.localScale = new Vector3(1, 1, magnitude);
-
-    //    return load;
-    //}
-
-    //public LoadBehaviour CreateLoad(NodeBehaviour node, Vector3 direction, float magnitude)
-    //{
-    //    if (loadPrefab == null)
-    //    {
-    //        Debug.LogError("Load prefab not assigned!");
-    //        return null;
-    //    }
-
-    //    GameObject loadObj = Instantiate(loadPrefab, node.transform.position, Quaternion.identity);
-    //    LoadBehaviour load = loadObj.GetComponent<LoadBehaviour>();
-    //    if (load == null)
-    //    {
-    //        Debug.LogError("Load prefab missing Load script!");
-    //        return null;
-    //    }
-    //    return load;
-    //}
-
     public void RemoveEdge(EdgeBehaviour edge)
     {
         if (edge != null)
