@@ -1,8 +1,3 @@
-
-// ============================================================================
-// FILE 2: StructuralAnalyzer.cs
-// Analysis coordinator component
-// ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
@@ -115,19 +110,31 @@ public class StructuralAnalyzer : MonoBehaviour
             return;
         }
 
-        //output += "=== MEMBER FORCES ===\n";
-        //for (int i = 0; i < data.edges.Count && i < result.memberForces.Length; i++)
-        //{
-        //    float force = result.memberForces[i];
-        //    string type = force > 0 ? "TENSION" : "COMPRESSION";
-        //    output += $"Member {i}: {force:F2} N ({type})\n";
-        //}
+        output += "=== NODE TOTAL FORCES ===\n";
+        for (int i = 0; i < data.nodes.Count; i++)
+        {
+            Vector3 totalForce = Vector3.zero;
+            foreach (var load in data.nodes[i].loads)
+            {
+                if (load != null)
+                    totalForce += load.GetForceVector();
+            }
+            output += $"Node {i}: ({totalForce.x:F2}, {totalForce.y:F2}, {totalForce.z:F2}) N\n";
+        }
 
-        //output += "\n=== REACTIONS ===\n";
-        //foreach (var kvp in result.reactions)
-        //{
-        //    output += $"Node {kvp.Key}: ({kvp.Value.x:F2}, {kvp.Value.y:F2}, {kvp.Value.z:F2}) N\n";
-        //}
+        output += "=== MEMBER FORCES ===\n";
+        for (int i = 0; i < data.edges.Count && i < result.memberForces.Length; i++)
+        {
+            float force = result.memberForces[i];
+            string type = force > 0 ? "TENSION" : "COMPRESSION";
+            output += $"Member {i}: {force:F2} N ({type})\n";
+        }
+
+        output += "\n=== REACTIONS ===\n";
+        foreach (var kvp in result.reactions)
+        {
+            output += $"Node {kvp.Key}: ({kvp.Value.x:F2}, {kvp.Value.y:F2}, {kvp.Value.z:F2}) N\n";
+        }
 
         resultsDisplay.text = output;
     }

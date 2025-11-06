@@ -1,8 +1,3 @@
-
-// ============================================================================
-// FILE 3: TrussAnalyzer.cs
-// Direct Stiffness Method implementation
-// ============================================================================
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -93,8 +88,27 @@ public static class TrussAnalyzer
             }
         }
 
+        Debug.LogWarning("K_ff and F_free:");
+        Debug.LogWarning(K_ff.ToString());
+        Debug.LogWarning(string.Join(", ", F_free));
+
         // STEP 6: Solve for displacements
         float[] u_free = MatrixSolver.SolveLinearSystem(K_ff, F_free);
+
+        //// normalize?
+        //float norm = 0f;
+        //for (int i = 0; i < u_free.Length; i++)
+        //{
+        //    norm += u_free[i] * u_free[i];
+        //}
+        //norm = Mathf.Sqrt(norm);
+        //if (norm > 1e-6f)
+        //{
+        //    for (int i = 0; i < u_free.Length; i++)
+        //    {
+        //        u_free[i] /= norm;
+        //    }
+        //}
 
         if (u_free == null)
         {
@@ -109,6 +123,18 @@ public static class TrussAnalyzer
         {
             u_global[freeDOFs[i]] = u_free[i];
         }
+        Debug.LogWarning("u_free");
+        Debug.LogWarning(string.Join(", ", u_free));
+        Debug.LogWarning("u_global");
+        Debug.LogWarning(string.Join(", ", u_global));
+
+        Debug.LogWarning("members");
+        string memberInfo = "";
+        foreach (var member in members)
+        {
+            memberInfo += $"Member between nodes {member.nodeA_idx} and {member.nodeB_idx}, length {member.length}, direction cosines ({member.cx}, {member.cy}, {member.cz})\n";
+        }
+        Debug.LogWarning(memberInfo);
 
         // STEP 7: Compute member forces
         result.memberForces = new float[numMembers];

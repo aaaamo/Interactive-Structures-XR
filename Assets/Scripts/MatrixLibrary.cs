@@ -1,8 +1,3 @@
-
-// ============================================================================
-// FILE 4: MatrixLibrary.cs
-// Custom matrix operations and linear solver
-// ============================================================================
 using UnityEngine;
 
 public class MatrixMxN
@@ -83,6 +78,15 @@ public class MatrixMxN
         return result;
     }
 
+    public static MatrixMxN Multiply(MatrixMxN A, float scalar)
+    {
+        MatrixMxN result = new MatrixMxN(A.rows, A.cols);
+        for (int i = 0; i < A.rows; i++)
+            for (int j = 0; j < A.cols; j++)
+                result.data[i, j] = A.data[i, j] * scalar;
+        return result;
+    }
+
     public static MatrixMxN Transpose(MatrixMxN A)
     {
         MatrixMxN result = new MatrixMxN(A.cols, A.rows);
@@ -91,6 +95,33 @@ public class MatrixMxN
                 result.data[j, i] = A.data[i, j];
         return result;
     }
+
+    public float AbsMax()
+    {
+        float maxVal = float.NegativeInfinity;
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                if (Mathf.Abs(data[i, j]) > maxVal)
+                    maxVal = data[i, j];
+        return maxVal;
+    }
+    public override string ToString()
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Matrix ({rows}x{cols}):");
+        for (int i = 0; i < rows; i++)
+        {
+            sb.Append("[ ");
+            for (int j = 0; j < cols; j++)
+            {
+                sb.AppendFormat("{0,8:0.###}", data[i, j]);
+                if (j < cols - 1) sb.Append(", ");
+            }
+            sb.AppendLine(" ]");
+        }
+        return sb.ToString();
+    }
+
 }
 
 public static class MatrixSolver
