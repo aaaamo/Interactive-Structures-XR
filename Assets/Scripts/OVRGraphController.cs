@@ -31,7 +31,8 @@ public class OVRGraphController : MonoBehaviour
         if (currentMode == Mode.Analyze)
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(true);
-        } else
+        }
+        else
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
         }
@@ -177,7 +178,7 @@ public class OVRGraphController : MonoBehaviour
             case Mode.Delete:
                 var nodeToDelete = GetNodeAtMarker();
                 if (nodeToDelete != null)
-                { 
+                {
                     DeleteNode(nodeToDelete);
                     break;
                 }
@@ -213,7 +214,7 @@ public class OVRGraphController : MonoBehaviour
                 // Trigger confirms analysis
                 if (structuralAnalyzer != null)
                 {
-                    
+
                     ConfirmAnalysis();
                 }
                 break;
