@@ -38,4 +38,14 @@ public class LoadBehaviour : MonoBehaviour
         arrow.localScale = new Vector3(scale, magnitude - offset, scale);
         arrow.localPosition = new Vector3(0, 0.5f * magnitude + offset, 0);
     }
+
+    public Vector3 GetForceVector()
+    {
+        return direction * magnitude;
+    }
+
+    public Vector3 EndPoint()
+    {
+        return node.transform.position + direction.normalized * magnitude;
+    }
 }
