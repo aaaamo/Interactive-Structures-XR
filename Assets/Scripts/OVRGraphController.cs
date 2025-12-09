@@ -5,15 +5,18 @@ using UnityEngine;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze }
+    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid }
     public Mode currentMode = Mode.AddNode;
+    public enum GridAxis { X, Y, Z, Spacing }
+    public GridAxis currentGridAxis = GridAxis.X;
 
     [Header("References")]
     public GraphManager graphManager;
     public Transform markerTransform;
     public TextMeshPro modeText;
     public StructuralAnalyzer structuralAnalyzer;
-    public GameObject analyzeConfirmPanel;
+    public GridPointRenderer gridRenderer;
+    public RaycastSurfaceFinder surfaceFinder;
 
     private NodeBehaviour firstSelectedNode;
     private EdgeBehaviour tempEdge;
@@ -26,8 +29,6 @@ public class OVRGraphController : MonoBehaviour
     void Start()
     {
         UpdateModeText();
-        if (analyzeConfirmPanel != null)
-            analyzeConfirmPanel.SetActive(false);
         if (currentMode == Mode.Analyze)
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(true);
@@ -36,6 +37,7 @@ public class OVRGraphController : MonoBehaviour
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
         }
+        gridRenderer.ShowGrid();
     }
 
     void Update()
@@ -49,19 +51,105 @@ public class OVRGraphController : MonoBehaviour
 
     void HandleModeSwitch()
     {
-        Vector2 thumbAxis = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
+        Vector2 rightThumbAxis = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
+        Vector2 leftThumbAxis = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch);
+        bool leftThumbDown = OVRInput.GetDown(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.LTouch);
+
         if (Time.time - lastThumbTime < thumbCooldown) return;
 
-        if (thumbAxis.x > 0.7f)
+        if (rightThumbAxis.x > 0.7f)
         {
             CycleMode(1);
             lastThumbTime = Time.time;
         }
-        else if (thumbAxis.x < -0.7f)
+        else if (rightThumbAxis.x < -0.7f)
         {
             CycleMode(-1);
             lastThumbTime = Time.time;
         }
+
+        if (currentMode == Mode.Analyze)
+        {
+            if (leftThumbAxis.y > 0.7f)
+            {
+                structuralAnalyzer.exaggerationFactor *= 1.1f;
+                structuralAnalyzer.RefreshDisplacements();
+            }
+            else if (leftThumbAxis.y < -0.7f)
+            {
+                structuralAnalyzer.exaggerationFactor /= 1.1f;
+                structuralAnalyzer.RefreshDisplacements();
+            }
+        }
+
+        if (currentMode == Mode.Grid && gridRenderer.isActive)
+        {
+            if (leftThumbDown)
+            {
+                gridRenderer.ToggleGrid();
+                return;
+            }
+            if (leftThumbAxis.x > 0.7f)
+            {
+                CycleGridAxis(1);
+                lastThumbTime = Time.time;
+            }
+            else if (leftThumbAxis.x < -0.7f)
+            {
+                CycleGridAxis(-1);
+                lastThumbTime = Time.time;
+            } 
+            else if (leftThumbAxis.y > 0.7f)
+            {
+                if (currentGridAxis == GridAxis.Spacing)
+                {
+                    gridRenderer.spacing += 0.005f;
+                }
+                else if (currentGridAxis == GridAxis.X)
+                {
+                    gridRenderer.size.x += 1;
+                }
+                else if (currentGridAxis == GridAxis.Y)
+                {
+                    gridRenderer.size.y += 1;
+                }
+                else if (currentGridAxis == GridAxis.Z)
+                {
+                    gridRenderer.size.z += 1;
+                }
+                lastThumbTime = Time.time;
+                gridRenderer.RefreshGrid();
+            }
+            else if (leftThumbAxis.y < -0.7f)
+            {
+                if (currentGridAxis == GridAxis.Spacing)
+                {
+                    gridRenderer.spacing = Mathf.Max(0.01f, gridRenderer.spacing - 0.01f);
+                } 
+                else if (currentGridAxis == GridAxis.X)
+                {
+                    gridRenderer.size.x = Mathf.Max(1, gridRenderer.size.x - 1);
+                }
+                else if (currentGridAxis == GridAxis.Y)
+                {
+                    gridRenderer.size.y = Mathf.Max(1, gridRenderer.size.y - 1);
+                }
+                else if (currentGridAxis == GridAxis.Z)
+                {
+                    gridRenderer.size.z = Mathf.Max(1, gridRenderer.size.z - 1);
+                }
+                lastThumbTime = Time.time;
+                gridRenderer.RefreshGrid();
+            }
+        }
+    }
+
+    void CycleGridAxis(int dir)
+    {
+        int numAxes = System.Enum.GetNames(typeof(GridAxis)).Length;
+        int next = ((int)currentGridAxis + dir + numAxes) % numAxes;
+        currentGridAxis = (GridAxis)next;
+        UpdateModeText();
     }
 
     void CycleMode(int dir)
@@ -87,22 +175,11 @@ public class OVRGraphController : MonoBehaviour
         // Show confirmation when entering Analyze mode
         if (currentMode == Mode.Analyze)
         {
-            if (analyzeConfirmPanel != null)
-            {
-                analyzeConfirmPanel.SetActive(true);
-            }
-            else
-            {
-                ShowAnalyzePrompt(); // Fallback if no UI panel assigned
-            }
+            ShowAnalyzePrompt();
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(true);
         }
         else
         {
-            if (analyzeConfirmPanel != null)
-            {
-                analyzeConfirmPanel.SetActive(false);
-            }
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
         }
     }
@@ -117,15 +194,25 @@ public class OVRGraphController : MonoBehaviour
     void UpdateModeText()
     {
         if (modeText != null)
+        {
             modeText.text = "Mode: " + currentMode.ToString();
+            if (currentMode == Mode.Grid)
+            {
+                modeText.text += "\nGrid Axis: " + currentGridAxis.ToString();
+                if (currentGridAxis == GridAxis.Spacing)
+                {
+                    modeText.text += $" = {gridRenderer.spacing:F3}";
+                }
+            }
+        }
     }
 
     void HandleTriggerInput()
     {
-        bool triggerPressed = OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-        if (triggerPressed && !triggerHeldLastFrame)
+        bool rightTriggerPressed = OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+        if (rightTriggerPressed && !triggerHeldLastFrame)
             OnTriggerPressed();
-        triggerHeldLastFrame = triggerPressed;
+        triggerHeldLastFrame = rightTriggerPressed;
 
         // Also check for grip button in Analyze mode (cancel)
         if (currentMode == Mode.Analyze)
@@ -142,7 +229,7 @@ public class OVRGraphController : MonoBehaviour
         switch (currentMode)
         {
             case Mode.AddNode:
-                graphManager.CreateNode(markerTransform.position);
+                graphManager.CreateNode(GetGridPoint(markerTransform.position));
                 break;
             case Mode.AddEdge:
                 HandleAddEdge();
@@ -218,6 +305,12 @@ public class OVRGraphController : MonoBehaviour
                     ConfirmAnalysis();
                 }
                 break;
+            case Mode.Grid:
+                if (surfaceFinder != null)
+                {
+                    surfaceFinder.SetAnchor();
+                }
+                break;
         }
     }
 
@@ -228,17 +321,12 @@ public class OVRGraphController : MonoBehaviour
             Debug.LogWarning("Analysis started!");
             structuralAnalyzer.PerformAnalysis();
         }
-        if (analyzeConfirmPanel != null)
-            analyzeConfirmPanel.SetActive(false);
-
         // Reset mode text
         UpdateModeText();
     }
 
     public void CancelAnalysis()
     {
-        if (analyzeConfirmPanel != null)
-            analyzeConfirmPanel.SetActive(false);
         Debug.LogWarning("Analysis cancelled");
 
         // Reset mode text
@@ -328,6 +416,12 @@ public class OVRGraphController : MonoBehaviour
         tempLoad.SetMagnitude(mag);
     }
 
+    Vector3 GetGridPoint(Vector3 pos)
+    {
+        if (gridRenderer == null) return pos;
+        return gridRenderer.GetClosestGridPoint(pos);
+    }
+
     NodeBehaviour GetNodeAtMarker()
     {
         NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
@@ -397,7 +491,8 @@ public class OVRGraphController : MonoBehaviour
         Vector3 offset = node.transform.position - markerTransform.position;
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
-            node.transform.position = markerTransform.position + offset;
+            Vector3 movedPos = GetGridPoint(markerTransform.position + offset);
+            node.transform.position = movedPos;
             if (node.connectedEdges != null)
             {
                 foreach (var edge in node.connectedEdges)
@@ -471,6 +566,8 @@ public class OVRGraphController : MonoBehaviour
                 }
             }
         }
+        //Vector3 GridSnapPos = GetGridPoint(markerTransform.position);
+
         Dictionary<NodeBehaviour, Vector3> offsets = new Dictionary<NodeBehaviour, Vector3>();
         foreach (var node in connectedNodes)
             offsets[node] = node.transform.position - markerTransform.position;

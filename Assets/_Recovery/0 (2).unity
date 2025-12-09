@@ -308,8 +308,6 @@ MonoBehaviour:
   resultsDisplay: {fileID: 1050267881}
   youngModulus: 2e+11
   crossSectionalArea: 0.01
-  exaggerationFactor: 100000000
-  displacedMaterialPrefab: {fileID: 2100000, guid: 3b6152fb5ba05474385f38f894082a0b, type: 2}
 --- !u!4 &335742039
 Transform:
   m_ObjectHideFlags: 0
@@ -319,7 +317,7 @@ Transform:
   m_GameObject: {fileID: 335742037}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 3.44243, y: 0, z: 0.64732}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -335,51 +333,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 487254, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
   m_PrefabInstance: {fileID: 454467581}
   m_PrefabAsset: {fileID: 0}
---- !u!1 &395412564
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 395412566}
-  - component: {fileID: 395412565}
-  m_Layer: 0
-  m_Name: EnvironmentRaycastManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &395412565
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 395412564}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2d8affdff7ba47d892cc734baac9ac71, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: meta.xr.mrutilitykit::Meta.XR.EnvironmentRaycastManager
-  CustomTrackingSpace: {fileID: 0}
---- !u!4 &395412566
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 395412564}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &416524688 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 100006, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
@@ -514,10 +467,6 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 11400000, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-      propertyPath: requestScenePermissionOnStartup
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 11400000, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       propertyPath: shouldBoundaryVisibilityBeSuppressed
       value: 1
       objectReference: {fileID: 0}
@@ -535,9 +484,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 400004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1323532929}
-    - targetCorrespondingSourceObject: {fileID: 400004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1707368245}
     - targetCorrespondingSourceObject: {fileID: 459718, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1835051836}
@@ -966,13 +912,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::OVRGraphController
   currentMode: 0
-  currentGridAxis: 0
   graphManager: {fileID: 2075418298}
   markerTransform: {fileID: 256993558}
   modeText: {fileID: 535932914}
   structuralAnalyzer: {fileID: 335742038}
-  gridRenderer: {fileID: 2087109988}
-  surfaceFinder: {fileID: 2110556239}
+  analyzeConfirmPanel: {fileID: 0}
 --- !u!4 &914555519
 Transform:
   m_ObjectHideFlags: 0
@@ -1301,11 +1245,6 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
---- !u!4 &1423380782 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 4484591312116288, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 454467581}
-  m_PrefabAsset: {fileID: 0}
 --- !u!114 &1489478391 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 5259293338637019375, guid: a76dbb9af7721554aa5cc13c312a2bcb, type: 3}
@@ -1397,54 +1336,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb7623a8f0b49cf4dbaa40aea4d4be64, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!1 &1707368244
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1707368245}
-  - component: {fileID: 1707368246}
-  m_Layer: 0
-  m_Name: EnvironmentDepthManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1707368245
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707368244}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 2009882095}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1707368246
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1707368244}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 71a155ece80369d4e99bdaf5e59169b5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Meta.XR.EnvironmentDepth::Meta.XR.EnvironmentDepth.EnvironmentDepthManager
-  _occlusionShadersMode: 0
-  _removeHands: 0
-  CustomTrackingSpace: {fileID: 0}
-  <MaskMeshFilters>k__BackingField: []
 --- !u!114 &1717866751 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 1742751480625897950, guid: a76dbb9af7721554aa5cc13c312a2bcb, type: 3}
@@ -1742,113 +1633,6 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2075418297}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &2087109987
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2087109989}
-  - component: {fileID: 2087109988}
-  m_Layer: 0
-  m_Name: GridPointRenderer
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2087109988
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2087109987}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 122a927d7758b4c408a68bbc942db696, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GridPointRenderer
-  origin: {x: 0, y: 0, z: 0}
-  xVec: {x: 1, y: 0, z: 0}
-  spacing: 0.05
-  size: {x: 8, y: 4, z: 8}
-  gridColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  pointSize: 0.002
-  pointMaterial: {fileID: 2100000, guid: 2d6cb82ab13e27b4094833942cdcdb44, type: 2}
-  cursor: {fileID: 256993558}
-  revealRadius: 0.1
-  falloffDistance: 0.1
-  minOpacity: 0.2
-  maxOpacity: 1
-  isActive: 0
---- !u!4 &2087109989
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2087109987}
-  serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &2110556238
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2110556240}
-  - component: {fileID: 2110556239}
-  m_Layer: 0
-  m_Name: RaycastSurfaceFinder
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &2110556239
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2110556238}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e2bd0748e2cd6db41a62c53ab08f77a8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Raycaster
-  rightControllerAnchor: {fileID: 1423380782}
-  surfaceAnchor: {fileID: 7349069827726099138, guid: 9e4ab917d2a078241966bce2a221753d, type: 3}
-  raycastManager: {fileID: 395412565}
-  gridPointRenderer: {fileID: 2087109988}
-  originAnchor: {x: 0, y: 0, z: 0}
-  directionAnchor: {x: 0, y: 0, z: 0}
---- !u!4 &2110556240
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2110556238}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -3573,6 +3357,3 @@ SceneRoots:
   - {fileID: 914555519}
   - {fileID: 335742039}
   - {fileID: 2075418299}
-  - {fileID: 2087109989}
-  - {fileID: 395412566}
-  - {fileID: 2110556240}

@@ -17,6 +17,24 @@ public static class TrussAnalyzer
         int numMembers = data.edges.Count;
         int numDOF = numNodes * 3;
 
+        // m + r >= 3j
+        int _m = 0;
+        int _j = data.nodes.Count;
+        int _r = data.supportNodes.Count * 3;
+
+        foreach (EdgeBehaviour edge in data.edges)
+        {
+            if (!edge.nodeA.isSupport || !edge.nodeB.isSupport) {
+                _m++;
+            }
+        }
+
+        if (_m + _r < 3 * _j)
+        {
+            result.errorMessage = $"Structure is unstable! ({_m}(m) + {_r}(r) < {3*_j} = 3*{_j}(j))";
+            return result;
+        }
+
         Debug.Log($"=== Starting Direct Stiffness Analysis ===");
         Debug.Log($"Nodes: {numNodes}, Members: {numMembers}, Total DOF: {numDOF}");
 
@@ -73,7 +91,7 @@ public static class TrussAnalyzer
             return result;
         }
 
-        Debug.Log($"Free DOFs: {freeDOFs.Count}");
+        //Debug.Log($"Free DOFs: {freeDOFs.Count}");
 
         int nFree = freeDOFs.Count;
         MatrixMxN K_ff = new MatrixMxN(nFree, nFree);
@@ -88,27 +106,8 @@ public static class TrussAnalyzer
             }
         }
 
-        Debug.LogWarning("K_ff and F_free:");
-        Debug.LogWarning(K_ff.ToString());
-        Debug.LogWarning(string.Join(", ", F_free));
-
         // STEP 6: Solve for displacements
         float[] u_free = MatrixSolver.SolveLinearSystem(K_ff, F_free);
-
-        //// normalize?
-        //float norm = 0f;
-        //for (int i = 0; i < u_free.Length; i++)
-        //{
-        //    norm += u_free[i] * u_free[i];
-        //}
-        //norm = Mathf.Sqrt(norm);
-        //if (norm > 1e-6f)
-        //{
-        //    for (int i = 0; i < u_free.Length; i++)
-        //    {
-        //        u_free[i] /= norm;
-        //    }
-        //}
 
         if (u_free == null)
         {
@@ -116,25 +115,23 @@ public static class TrussAnalyzer
             return result;
         }
 
-        Debug.Log("Displacements computed successfully");
+        //Debug.Log("Displacements computed successfully");
 
         float[] u_global = new float[numDOF];
         for (int i = 0; i < nFree; i++)
         {
             u_global[freeDOFs[i]] = u_free[i];
         }
-        Debug.LogWarning("u_free");
-        Debug.LogWarning(string.Join(", ", u_free));
-        Debug.LogWarning("u_global");
-        Debug.LogWarning(string.Join(", ", u_global));
-
-        Debug.LogWarning("members");
-        string memberInfo = "";
-        foreach (var member in members)
+        result.displacements = new Dictionary<int, Vector3>();
+        foreach (int nodeidx in data.nodeIndexMap.Values)
         {
-            memberInfo += $"Member between nodes {member.nodeA_idx} and {member.nodeB_idx}, length {member.length}, direction cosines ({member.cx}, {member.cy}, {member.cz})\n";
+            Vector3 disp = new Vector3(
+                u_global[nodeidx * 3 + 0],
+                u_global[nodeidx * 3 + 1],
+                u_global[nodeidx * 3 + 2]
+            );
+            result.displacements[nodeidx] = disp;
         }
-        Debug.LogWarning(memberInfo);
 
         // STEP 7: Compute member forces
         result.memberForces = new float[numMembers];
