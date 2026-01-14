@@ -18,6 +18,15 @@ public class OVRGraphController : MonoBehaviour
     public GridPointRenderer gridRenderer;
     public RaycastSurfaceFinder surfaceFinder;
 
+    [Header("Visual Feedback")]
+    public MarkerController markerController;
+    public GameObject ghostNodePrefab;
+    public Material ghostMaterial;
+    public ModeDisplayUI modeDisplayUI;
+    public TutorialTooltipSystem tutorialSystem;
+    public ModeTutorialPanel tutorialPanel;
+    public ContextualTutorialPanel contextualTutorial;
+
     private NodeBehaviour firstSelectedNode;
     private EdgeBehaviour tempEdge;
     private NodeBehaviour firstLoadNode = null;
@@ -25,6 +34,12 @@ public class OVRGraphController : MonoBehaviour
     private bool triggerHeldLastFrame = false;
     private float lastThumbTime = 0f;
     private float thumbCooldown = 0.3f;
+
+    // Visual feedback tracking
+    private GameObject ghostNode;
+    private LineRenderer ghostEdgeLine;
+    private GameObject hoveredObject;
+    private HashSet<NodeBehaviour> highlightedGrabNodes = new HashSet<NodeBehaviour>();
 
     void Start()
     {
@@ -38,6 +53,18 @@ public class OVRGraphController : MonoBehaviour
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
         }
         gridRenderer.ShowGrid();
+
+        // Initialize marker controller
+        if (markerController == null && markerTransform != null)
+        {
+            markerController = markerTransform.GetComponent<MarkerController>();
+            if (markerController == null)
+                markerController = markerTransform.gameObject.AddComponent<MarkerController>();
+        }
+        markerController?.SetModeColor(currentMode);
+
+        // Setup ghost edge line renderer
+        SetupGhostEdgeLine();
     }
 
     void Update()
@@ -47,6 +74,7 @@ public class OVRGraphController : MonoBehaviour
         HandleTriggerInput();
         UpdateTemporaryEdge();
         UpdateTemporaryLoad();
+        UpdateVisualFeedback();
     }
 
     void HandleModeSwitch()
@@ -159,6 +187,14 @@ public class OVRGraphController : MonoBehaviour
         currentMode = (Mode)next;
         UpdateModeText();
 
+        // Haptic feedback for mode change
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+
+        // Update marker color
+        markerController?.SetModeColor(currentMode);
+
+        // Cleanup temporary objects
+        CleanupGhostObjects();
         if (tempEdge != null)
         {
             graphManager.RemoveEdge(tempEdge);
@@ -171,6 +207,14 @@ public class OVRGraphController : MonoBehaviour
             tempLoad = null;
             firstLoadNode = null;
         }
+
+        // Clear visual feedback
+        VisualFeedbackManager.Instance?.ClearHover();
+        VisualFeedbackManager.Instance?.ClearSelection();
+
+        // Update tutorial panels for new mode
+        tutorialPanel?.UpdateForMode(currentMode);
+        contextualTutorial?.ShowForMode(currentMode);
 
         // Show confirmation when entering Analyze mode
         if (currentMode == Mode.Analyze)
@@ -193,6 +237,7 @@ public class OVRGraphController : MonoBehaviour
 
     void UpdateModeText()
     {
+        // Update old text display (backward compatibility)
         if (modeText != null)
         {
             modeText.text = "Mode: " + currentMode.ToString();
@@ -205,6 +250,15 @@ public class OVRGraphController : MonoBehaviour
                 }
             }
         }
+
+        // Update new mode display UI
+        if (modeDisplayUI != null)
+        {
+            modeDisplayUI.UpdateModeDisplay(currentMode, currentGridAxis, gridRenderer != null ? gridRenderer.spacing : 0.1f);
+        }
+
+        // Show tutorial tooltip for first-time mode usage
+        tutorialSystem?.ShowModeTooltip(currentMode);
     }
 
     void HandleTriggerInput()
@@ -230,6 +284,9 @@ public class OVRGraphController : MonoBehaviour
         {
             case Mode.AddNode:
                 graphManager.CreateNode(GetGridPoint(markerTransform.position));
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+                markerController?.Pulse();
+                contextualTutorial?.OnActionPerformed(Mode.AddNode);
                 break;
             case Mode.AddEdge:
                 HandleAddEdge();
@@ -240,7 +297,11 @@ public class OVRGraphController : MonoBehaviour
             case Mode.ToggleSupport:
                 var nodeToToggle = GetNodeAtMarker();
                 if (nodeToToggle != null)
+                {
                     nodeToToggle.ToggleSupport();
+                    HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+                    contextualTutorial?.OnActionPerformed(Mode.ToggleSupport);
+                }
                 break;
             case Mode.Move:
                 var nodeToMove = GetNodeAtMarker();
@@ -267,12 +328,14 @@ public class OVRGraphController : MonoBehaviour
                 if (nodeToDelete != null)
                 {
                     DeleteNode(nodeToDelete);
+                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                     break;
                 }
                 var edgeToDelete = GetEdgeAtMarker();
                 if (edgeToDelete != null)
                 {
                     DeleteEdge(edgeToDelete);
+                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                     break;
                 }
                 var loadToDelete = GetLoadAtMarker();
@@ -281,6 +344,7 @@ public class OVRGraphController : MonoBehaviour
                     if (loadToDelete.node != null)
                         loadToDelete.node.loads.Remove(loadToDelete);
                     Destroy(loadToDelete.gameObject);
+                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                 }
                 break;
             case Mode.Grab:
@@ -342,6 +406,8 @@ public class OVRGraphController : MonoBehaviour
         {
             firstSelectedNode = node;
             tempEdge = graphManager.CreateEdge(firstSelectedNode);
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+            VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(0.2f, 1f, 0.2f, 1f));
         }
         else if (node != firstSelectedNode)
         {
@@ -370,11 +436,16 @@ public class OVRGraphController : MonoBehaviour
                     node.connectedEdges = new List<EdgeBehaviour>();
                 node.connectedEdges.Add(tempEdge);
                 tempEdge.UpdateEdgePosition();
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
             }
             else
             {
                 graphManager.RemoveEdge(tempEdge);
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Error);
+                modeDisplayUI?.ShowMessage("Edge already exists between these nodes!", new Color(1f, 0.3f, 0.3f));
+                StartCoroutine(ClearMessageAfterDelay(2f));
             }
+            VisualFeedbackManager.Instance?.ClearSelection();
             firstSelectedNode = null;
             tempEdge = null;
         }
@@ -388,6 +459,8 @@ public class OVRGraphController : MonoBehaviour
             if (node == null) return;
             firstLoadNode = node;
             tempLoad = graphManager.CreateLoad(firstLoadNode, Vector3.down, 1f);
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+            VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(1f, 0.6f, 0.2f, 1f));
         }
         else
         {
@@ -396,6 +469,8 @@ public class OVRGraphController : MonoBehaviour
             tempLoad.SetDirection(dir.normalized);
             tempLoad.SetMagnitude(mag);
             firstLoadNode.loads.Add(tempLoad);
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
+            VisualFeedbackManager.Instance?.ClearSelection();
             firstLoadNode = null;
             tempLoad = null;
         }
@@ -623,5 +698,316 @@ public class OVRGraphController : MonoBehaviour
         if (edge.nodeB != null)
             edge.nodeB.connectedEdges?.Remove(edge);
         graphManager.RemoveEdge(edge);
+    }
+
+    // ========== VISUAL FEEDBACK METHODS ==========
+
+    void SetupGhostEdgeLine()
+    {
+        GameObject lineObj = new GameObject("GhostEdgeLine");
+        ghostEdgeLine = lineObj.AddComponent<LineRenderer>();
+        ghostEdgeLine.startWidth = 0.005f;
+        ghostEdgeLine.endWidth = 0.005f;
+        ghostEdgeLine.material = new Material(Shader.Find("Sprites/Default"));
+        ghostEdgeLine.startColor = new Color(0.2f, 0.6f, 1f, 0.5f);
+        ghostEdgeLine.endColor = new Color(0.2f, 0.6f, 1f, 0.5f);
+        ghostEdgeLine.enabled = false;
+        ghostEdgeLine.positionCount = 2;
+    }
+
+    void UpdateVisualFeedback()
+    {
+        // Clear previous hover
+        if (hoveredObject != null)
+        {
+            VisualFeedbackManager.Instance?.ClearHover();
+            hoveredObject = null;
+        }
+
+        switch (currentMode)
+        {
+            case Mode.AddNode:
+                UpdateAddNodeFeedback();
+                break;
+            case Mode.AddEdge:
+                UpdateAddEdgeFeedback();
+                break;
+            case Mode.AddLoad:
+                UpdateAddLoadFeedback();
+                break;
+            case Mode.ToggleSupport:
+                UpdateToggleSupportFeedback();
+                break;
+            case Mode.Move:
+                UpdateMoveFeedback();
+                break;
+            case Mode.Delete:
+                UpdateDeleteFeedback();
+                break;
+            case Mode.Grab:
+                UpdateGrabFeedback();
+                break;
+        }
+    }
+
+    void UpdateAddNodeFeedback()
+    {
+        // Show ghost node at grid snap position
+        Vector3 snapPos = GetGridPoint(markerTransform.position);
+
+        if (ghostNode == null && graphManager.nodePrefab != null)
+        {
+            ghostNode = Instantiate(graphManager.nodePrefab, snapPos, Quaternion.identity);
+            ghostNode.name = "GhostNode";
+
+            // Make it semi-transparent
+            Renderer[] renderers = ghostNode.GetComponentsInChildren<Renderer>();
+            foreach (var rend in renderers)
+            {
+                Material[] mats = rend.materials;
+                for (int i = 0; i < mats.Length; i++)
+                {
+                    mats[i] = new Material(mats[i]);
+                    Color c = mats[i].color;
+                    c.a = 0.3f;
+                    mats[i].color = c;
+                }
+                rend.materials = mats;
+            }
+
+            // Disable behavior scripts
+            var nodeBehaviour = ghostNode.GetComponent<NodeBehaviour>();
+            if (nodeBehaviour != null) nodeBehaviour.enabled = false;
+        }
+        else if (ghostNode != null)
+        {
+            ghostNode.transform.position = snapPos;
+        }
+    }
+
+    void UpdateAddEdgeFeedback()
+    {
+        // Cleanup ghost node if it exists
+        if (ghostNode != null)
+        {
+            Destroy(ghostNode);
+            ghostNode = null;
+        }
+
+        // Hover highlight on nodes
+        NodeBehaviour node = GetNodeAtMarker();
+        if (node != null)
+        {
+            hoveredObject = node.gameObject;
+            Color highlightColor = (firstSelectedNode == null) ?
+                new Color(0.2f, 1f, 0.2f, 1f) : new Color(0.2f, 0.6f, 1f, 1f);
+
+            if (VisualFeedbackManager.Instance != null)
+            {
+                VisualFeedbackManager.Instance.HighlightHover(node.gameObject, highlightColor);
+            }
+        }
+
+        // Show ghost edge line
+        if (firstSelectedNode != null && ghostEdgeLine != null)
+        {
+            ghostEdgeLine.enabled = true;
+            ghostEdgeLine.SetPosition(0, firstSelectedNode.transform.position);
+            ghostEdgeLine.SetPosition(1, markerTransform.position);
+
+            // Check if edge would be duplicate
+            if (node != null && node != firstSelectedNode)
+            {
+                bool isDuplicate = CheckDuplicateEdge(firstSelectedNode, node);
+                ghostEdgeLine.startColor = isDuplicate ? new Color(1f, 0f, 0f, 0.5f) : new Color(0.2f, 1f, 0.2f, 0.5f);
+                ghostEdgeLine.endColor = isDuplicate ? new Color(1f, 0f, 0f, 0.5f) : new Color(0.2f, 1f, 0.2f, 0.5f);
+            }
+        }
+        else if (ghostEdgeLine != null)
+        {
+            ghostEdgeLine.enabled = false;
+        }
+    }
+
+    bool CheckDuplicateEdge(NodeBehaviour nodeA, NodeBehaviour nodeB)
+    {
+        if (nodeA.connectedEdges != null)
+        {
+            foreach (var e in nodeA.connectedEdges)
+            {
+                if (e == null) continue;
+                if ((e.nodeA == nodeA && e.nodeB == nodeB) ||
+                    (e.nodeB == nodeA && e.nodeA == nodeB))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    void UpdateAddLoadFeedback()
+    {
+        // Cleanup
+        if (ghostNode != null)
+        {
+            Destroy(ghostNode);
+            ghostNode = null;
+        }
+        if (ghostEdgeLine != null)
+        {
+            ghostEdgeLine.enabled = false;
+        }
+
+        // Hover on nodes
+        if (firstLoadNode == null)
+        {
+            NodeBehaviour node = GetNodeAtMarker();
+            if (node != null)
+            {
+                hoveredObject = node.gameObject;
+                VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(1f, 0.6f, 0.2f, 1f));
+            }
+        }
+    }
+
+    void UpdateToggleSupportFeedback()
+    {
+        CleanupGhostObjects();
+
+        NodeBehaviour node = GetNodeAtMarker();
+        if (node != null)
+        {
+            hoveredObject = node.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(0.8f, 0.8f, 0.2f, 1f));
+        }
+    }
+
+    void UpdateMoveFeedback()
+    {
+        CleanupGhostObjects();
+
+        // Highlight moveable objects
+        NodeBehaviour node = GetNodeAtMarker();
+        if (node != null)
+        {
+            hoveredObject = node.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
+            return;
+        }
+
+        EdgeBehaviour edge = GetEdgeAtMarker();
+        if (edge != null)
+        {
+            hoveredObject = edge.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(edge.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
+            return;
+        }
+
+        LoadBehaviour load = GetLoadAtMarker();
+        if (load != null)
+        {
+            hoveredObject = load.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(load.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
+        }
+    }
+
+    void UpdateDeleteFeedback()
+    {
+        CleanupGhostObjects();
+
+        // Highlight deleteable objects in red
+        NodeBehaviour node = GetNodeAtMarker();
+        if (node != null)
+        {
+            hoveredObject = node.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
+            return;
+        }
+
+        EdgeBehaviour edge = GetEdgeAtMarker();
+        if (edge != null)
+        {
+            hoveredObject = edge.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(edge.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
+            return;
+        }
+
+        LoadBehaviour load = GetLoadAtMarker();
+        if (load != null)
+        {
+            hoveredObject = load.gameObject;
+            VisualFeedbackManager.Instance?.HighlightHover(load.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
+        }
+    }
+
+    void UpdateGrabFeedback()
+    {
+        CleanupGhostObjects();
+
+        // Clear previous grab highlights
+        if (highlightedGrabNodes.Count > 0)
+        {
+            VisualFeedbackManager.Instance?.ClearConnectedHighlight(highlightedGrabNodes);
+            highlightedGrabNodes.Clear();
+        }
+
+        // Get hovered node or edge
+        NodeBehaviour startNode = GetNodeAtMarker();
+        if (startNode == null)
+        {
+            EdgeBehaviour edge = GetEdgeAtMarker();
+            if (edge != null)
+                startNode = edge.nodeA ?? edge.nodeB;
+        }
+
+        if (startNode != null)
+        {
+            // Find all connected nodes using BFS
+            HashSet<NodeBehaviour> connectedNodes = new HashSet<NodeBehaviour>();
+            Queue<NodeBehaviour> queue = new Queue<NodeBehaviour>();
+            queue.Enqueue(startNode);
+            connectedNodes.Add(startNode);
+
+            while (queue.Count > 0)
+            {
+                NodeBehaviour node = queue.Dequeue();
+                if (node.connectedEdges != null)
+                {
+                    foreach (EdgeBehaviour edge in node.connectedEdges)
+                    {
+                        NodeBehaviour other = edge.nodeA == node ? edge.nodeB : edge.nodeA;
+                        if (other != null && !connectedNodes.Contains(other))
+                        {
+                            connectedNodes.Add(other);
+                            queue.Enqueue(other);
+                        }
+                    }
+                }
+            }
+
+            // Highlight all connected nodes
+            highlightedGrabNodes = connectedNodes;
+            VisualFeedbackManager.Instance?.HighlightConnectedStructure(connectedNodes, new Color(0.3f, 0.9f, 1f, 1f));
+        }
+    }
+
+    void CleanupGhostObjects()
+    {
+        if (ghostNode != null)
+        {
+            Destroy(ghostNode);
+            ghostNode = null;
+        }
+        if (ghostEdgeLine != null)
+        {
+            ghostEdgeLine.enabled = false;
+        }
+    }
+
+    IEnumerator ClearMessageAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        modeDisplayUI?.ClearMessage(currentMode);
     }
 }

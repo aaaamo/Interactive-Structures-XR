@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -8,10 +9,11 @@ public class StructuralAnalyzer : MonoBehaviour
     [Header("References")]
     public GraphManager graphManager;
     public TextMeshPro resultsDisplay;
+    public LoadingIndicator loadingIndicator;
 
     [Header("Material Properties")]
     public float youngModulus = 200e9f; // Steel: 200 GPa
-    public float crossSectionalArea = 0.01f; // 10 cm²
+    public float crossSectionalArea = 0.01f; // 10 cmï¿½
     public float exaggerationFactor = 100000000.0f; // For displacement visualization
 
     public Material displacedMaterialPrefab;
@@ -19,10 +21,23 @@ public class StructuralAnalyzer : MonoBehaviour
 
     public void PerformAnalysis()
     {
+        StartCoroutine(PerformAnalysisCoroutine());
+    }
+
+    IEnumerator PerformAnalysisCoroutine()
+    {
+        // Show loading indicator
+        loadingIndicator?.Show("Analyzing Structure");
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+
+        // Wait one frame for visual feedback
+        yield return null;
+
         if (graphManager == null)
         {
             Debug.LogError("GraphManager reference missing!");
-            return;
+            loadingIndicator?.Hide();
+            yield break;
         }
 
         NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.InstanceID);
@@ -31,7 +46,9 @@ public class StructuralAnalyzer : MonoBehaviour
         if (allNodes.Length == 0)
         {
             DisplayResults("No structure to analyze!");
-            return;
+            loadingIndicator?.Hide();
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Error);
+            yield break;
         }
 
         // Find all independent subgraphs
@@ -40,8 +57,12 @@ public class StructuralAnalyzer : MonoBehaviour
         if (subgraphs.Count == 0)
         {
             DisplayResults("No connected structures found!");
-            return;
+            loadingIndicator?.Hide();
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Error);
+            yield break;
         }
+
+        yield return null; // Let UI update
 
         // Analyze each subgraph independently
         List<SubgraphAnalysisResult> results = new List<SubgraphAnalysisResult>();
@@ -55,6 +76,10 @@ public class StructuralAnalyzer : MonoBehaviour
                 data = data,
                 result = result
             });
+
+            // Yield every few structures for responsiveness
+            if (i % 5 == 0)
+                yield return null;
         }
 
         resultNow = results;
@@ -62,6 +87,10 @@ public class StructuralAnalyzer : MonoBehaviour
         // Display and visualize all results
         DisplayAllAnalysisResults(results);
         VisualizeAllForces(results);
+
+        // Hide loading indicator and provide success feedback
+        loadingIndicator?.Hide();
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
     }
 
     public void RefreshDisplacements()

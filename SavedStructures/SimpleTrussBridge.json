@@ -1,0 +1,217 @@
+{
+  "structureName": "SimpleTrussBridge.json",
+  "dateCreated": "2026-01-13 00:00:00",
+  "version": 1,
+  "nodes": [
+    {
+      "id": 0,
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.0,
+      "isSupport": true
+    },
+    {
+      "id": 1,
+      "x": 0.5,
+      "y": 0.3,
+      "z": 0.0,
+      "isSupport": false
+    },
+    {
+      "id": 2,
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0.0,
+      "isSupport": false
+    },
+    {
+      "id": 3,
+      "x": 1.5,
+      "y": 0.3,
+      "z": 0.0,
+      "isSupport": false
+    },
+    {
+      "id": 4,
+      "x": 2.0,
+      "y": 0.0,
+      "z": 0.0,
+      "isSupport": true
+    },
+    {
+      "id": 5,
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.3,
+      "isSupport": true
+    },
+    {
+      "id": 6,
+      "x": 0.5,
+      "y": 0.3,
+      "z": 0.3,
+      "isSupport": false
+    },
+    {
+      "id": 7,
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0.3,
+      "isSupport": false
+    },
+    {
+      "id": 8,
+      "x": 1.5,
+      "y": 0.3,
+      "z": 0.3,
+      "isSupport": false
+    },
+    {
+      "id": 9,
+      "x": 2.0,
+      "y": 0.0,
+      "z": 0.3,
+      "isSupport": true
+    }
+  ],
+  "edges": [
+    {
+      "nodeAId": 0,
+      "nodeBId": 1
+    },
+    {
+      "nodeAId": 1,
+      "nodeBId": 2
+    },
+    {
+      "nodeAId": 2,
+      "nodeBId": 3
+    },
+    {
+      "nodeAId": 3,
+      "nodeBId": 4
+    },
+    {
+      "nodeAId": 0,
+      "nodeBId": 2
+    },
+    {
+      "nodeAId": 1,
+      "nodeBId": 3
+    },
+    {
+      "nodeAId": 2,
+      "nodeBId": 4
+    },
+    {
+      "nodeAId": 5,
+      "nodeBId": 6
+    },
+    {
+      "nodeAId": 6,
+      "nodeBId": 7
+    },
+    {
+      "nodeAId": 7,
+      "nodeBId": 8
+    },
+    {
+      "nodeAId": 8,
+      "nodeBId": 9
+    },
+    {
+      "nodeAId": 5,
+      "nodeBId": 7
+    },
+    {
+      "nodeAId": 6,
+      "nodeBId": 8
+    },
+    {
+      "nodeAId": 7,
+      "nodeBId": 9
+    },
+    {
+      "nodeAId": 0,
+      "nodeBId": 5
+    },
+    {
+      "nodeAId": 1,
+      "nodeBId": 6
+    },
+    {
+      "nodeAId": 2,
+      "nodeBId": 7
+    },
+    {
+      "nodeAId": 3,
+      "nodeBId": 8
+    },
+    {
+      "nodeAId": 4,
+      "nodeBId": 9
+    },
+    {
+      "nodeAId": 0,
+      "nodeBId": 6
+    },
+    {
+      "nodeAId": 1,
+      "nodeBId": 5
+    },
+    {
+      "nodeAId": 1,
+      "nodeBId": 7
+    },
+    {
+      "nodeAId": 2,
+      "nodeBId": 6
+    },
+    {
+      "nodeAId": 2,
+      "nodeBId": 8
+    },
+    {
+      "nodeAId": 3,
+      "nodeBId": 7
+    },
+    {
+      "nodeAId": 3,
+      "nodeBId": 9
+    },
+    {
+      "nodeAId": 4,
+      "nodeBId": 8
+    }
+  ],
+  "loads": [
+    {
+      "nodeId": 1,
+      "dirX": 0.0,
+      "dirY": -1.0,
+      "dirZ": 0.0,
+      "magnitude": 5000.0
+    },
+    {
+      "nodeId": 3,
+      "dirX": 0.0,
+      "dirY": -1.0,
+      "dirZ": 0.0,
+      "magnitude": 5000.0
+    },
+    {
+      "nodeId": 6,
+      "dirX": 0.0,
+      "dirY": -1.0,
+      "dirZ": 0.0,
+      "magnitude": 5000.0
+    },
+    {
+      "nodeId": 8,
+      "dirX": 0.0,
+      "dirY": -1.0,
+      "dirZ": 0.0,
+      "magnitude": 5000.0
+    }
+  ]
+}
