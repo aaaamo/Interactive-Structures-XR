@@ -220,12 +220,12 @@ MonoBehaviour:
   tutorialText: {fileID: 871263449}
   tutorialPanel: {fileID: 845719444}
   panelTransform: {fileID: 207147542}
-  graphController: {fileID: 914555518}
+  graphController: {fileID: 0}
   showWelcomeOnStart: 1
   showModeHelp: 1
   stepDuration: 6
   autoHideDelay: 10
-  panelOffset: {x: 0, y: 0, z: 2}
+  panelOffset: {x: 0, y: 1.6, z: 2}
   followView: 1
   followSpeed: 3
   actionsBeforeAutoHide: 3
@@ -1137,7 +1137,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 1, y: 1}
+  m_SizeDelta: {x: 3, y: 1.8}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!23 &871263448
 MeshRenderer:
@@ -1242,7 +1242,7 @@ MonoBehaviour:
   m_fontSizeMax: 72
   m_fontStyle: 0
   m_HorizontalAlignment: 2
-  m_VerticalAlignment: 512
+  m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
   m_wordSpacing: 0

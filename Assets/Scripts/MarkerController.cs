@@ -15,6 +15,7 @@ public class MarkerController : MonoBehaviour
     public Color grabColor = new Color(0.3f, 0.9f, 1f, 0.8f);         // Cyan
     public Color analyzeColor = new Color(1f, 1f, 1f, 0.8f);          // White
     public Color gridColor = new Color(0.7f, 0.7f, 0.7f, 0.5f);       // Gray
+    public Color importColor = new Color(0.5f, 0.9f, 1f, 0.8f);       // Light Cyan
 
     [Header("Invalid Action Color")]
     public Color invalidColor = new Color(1f, 0f, 0f, 0.5f);          // Transparent red
@@ -106,6 +107,8 @@ public class MarkerController : MonoBehaviour
                 return analyzeColor;
             case OVRGraphController.Mode.Grid:
                 return gridColor;
+            case OVRGraphController.Mode.Import:
+                return importColor;
             default:
                 return Color.white;
         }

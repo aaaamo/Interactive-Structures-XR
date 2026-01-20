@@ -21,6 +21,7 @@ public class ModeDisplayUI : MonoBehaviour
     public Color grabColor = new Color(0.3f, 0.9f, 1f);
     public Color analyzeColor = new Color(1f, 1f, 1f);
     public Color gridColor = new Color(0.7f, 0.7f, 0.7f);
+    public Color importColor = new Color(0.5f, 0.9f, 1f);
 
     private static readonly string[] modeIcons = {
         "\u25CF",  // AddNode - Filled circle
@@ -31,7 +32,8 @@ public class ModeDisplayUI : MonoBehaviour
         "\u2716",  // Delete - X
         "\u270B",  // Grab - Hand
         "\u2699",  // Analyze - Gear
-        "\u2637"   // Grid - Grid symbol
+        "\u2637",  // Grid - Grid symbol
+        "\u2913"   // Import - Down arrow to bar (download)
     };
 
     private static readonly string[] modeHints = {
@@ -43,7 +45,8 @@ public class ModeDisplayUI : MonoBehaviour
         "Point and TRIGGER to delete",
         "Point and TRIGGER to move structure",
         "TRIGGER to analyze | GRIP to cancel",
-        "TRIGGER to set grid anchors"
+        "TRIGGER to set grid anchors",
+        "TRIGGER to open file browser"
     };
 
     /// <summary>
@@ -126,6 +129,7 @@ public class ModeDisplayUI : MonoBehaviour
             case OVRGraphController.Mode.Grab: return grabColor;
             case OVRGraphController.Mode.Analyze: return analyzeColor;
             case OVRGraphController.Mode.Grid: return gridColor;
+            case OVRGraphController.Mode.Import: return importColor;
             default: return Color.white;
         }
     }

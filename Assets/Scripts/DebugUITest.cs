@@ -18,7 +18,7 @@ public class DebugUITest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             Debug.Log("[DEBUG] Testing node highlights (GREEN)");
-            NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             foreach (var node in nodes)
             {
                 SimpleHighlight highlight = node.gameObject.GetComponent<SimpleHighlight>();
@@ -35,7 +35,7 @@ public class DebugUITest : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             Debug.Log("[DEBUG] Clearing all highlights");
-            NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             foreach (var node in nodes)
             {
                 SimpleHighlight highlight = node.gameObject.GetComponent<SimpleHighlight>();
@@ -58,7 +58,7 @@ public class DebugUITest : MonoBehaviour
             else
             {
                 Debug.Log("[DEBUG] VisualFeedbackManager found!");
-                NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+                NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
                 if (nodes.Length > 0)
                 {
                     VisualFeedbackManager.Instance.HighlightHover(nodes[0].gameObject, Color.yellow);
@@ -88,19 +88,13 @@ public class DebugUITest : MonoBehaviour
             var ovrController = FindObjectOfType<OVRGraphController>();
             Debug.Log($"[DEBUG] OVRGraphController: {(ovrController != null ? "FOUND" : "NOT FOUND")}");
 
-            var welcomeTutorial = FindObjectOfType<WelcomeTutorial>();
-            Debug.Log($"[DEBUG] WelcomeTutorial: {(welcomeTutorial != null ? "FOUND" : "NOT FOUND")}");
+            var unifiedTutorial = FindObjectOfType<UnifiedTutorialSystem>();
+            Debug.Log($"[DEBUG] UnifiedTutorialSystem: {(unifiedTutorial != null ? "FOUND" : "NOT FOUND")}");
 
-            var modeTutorial = FindObjectOfType<ModeTutorialPanel>();
-            Debug.Log($"[DEBUG] ModeTutorialPanel: {(modeTutorial != null ? "FOUND" : "NOT FOUND")}");
-
-            var tooltipSystem = FindObjectOfType<TutorialTooltipSystem>();
-            Debug.Log($"[DEBUG] TutorialTooltipSystem: {(tooltipSystem != null ? "FOUND" : "NOT FOUND")}");
-
-            NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             Debug.Log($"[DEBUG] Nodes in scene: {nodes.Length}");
 
-            EdgeBehaviour[] edges = FindObjectsOfType<EdgeBehaviour>();
+            EdgeBehaviour[] edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
             Debug.Log($"[DEBUG] Edges in scene: {edges.Length}");
 
             Debug.Log("[DEBUG] === END CHECK ===");
@@ -181,7 +175,7 @@ public class DebugUITest : MonoBehaviour
 
         if (GUILayout.Button("Highlight Nodes"))
         {
-            NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             foreach (var node in nodes)
             {
                 SimpleHighlight highlight = node.gameObject.GetComponent<SimpleHighlight>();
@@ -193,7 +187,7 @@ public class DebugUITest : MonoBehaviour
 
         if (GUILayout.Button("Clear Highlights"))
         {
-            NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             foreach (var node in nodes)
             {
                 SimpleHighlight highlight = node.gameObject.GetComponent<SimpleHighlight>();

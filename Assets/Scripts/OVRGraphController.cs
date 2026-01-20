@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid }
+    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
     public Mode currentMode = Mode.AddNode;
     public enum GridAxis { X, Y, Z, Spacing }
     public GridAxis currentGridAxis = GridAxis.X;
@@ -23,9 +23,9 @@ public class OVRGraphController : MonoBehaviour
     public GameObject ghostNodePrefab;
     public Material ghostMaterial;
     public ModeDisplayUI modeDisplayUI;
-    public TutorialTooltipSystem tutorialSystem;
-    public ModeTutorialPanel tutorialPanel;
-    public ContextualTutorialPanel contextualTutorial;
+
+    [Header("Tutorial System")]
+    public UnifiedTutorialSystem unifiedTutorial;
 
     private NodeBehaviour firstSelectedNode;
     private EdgeBehaviour tempEdge;
@@ -110,13 +110,23 @@ public class OVRGraphController : MonoBehaviour
             }
         }
 
+        // Left thumbstick press toggles grid snap on/off (works in any mode if grid is set)
+        if (leftThumbDown && gridRenderer != null && gridRenderer.isGridSet)
+        {
+            gridRenderer.isSnapEnabled = !gridRenderer.isSnapEnabled;
+            Debug.Log($"[Grid] Snap {(gridRenderer.isSnapEnabled ? "ENABLED" : "DISABLED")}");
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+
+            // Also toggle grid visibility to match snap state
+            if (gridRenderer.isSnapEnabled && !gridRenderer.isActive)
+                gridRenderer.ShowGrid();
+            else if (!gridRenderer.isSnapEnabled && gridRenderer.isActive)
+                gridRenderer.HideGrid();
+            return;
+        }
+
         if (currentMode == Mode.Grid && gridRenderer.isActive)
         {
-            if (leftThumbDown)
-            {
-                gridRenderer.ToggleGrid();
-                return;
-            }
             if (leftThumbAxis.x > 0.7f)
             {
                 CycleGridAxis(1);
@@ -212,9 +222,8 @@ public class OVRGraphController : MonoBehaviour
         VisualFeedbackManager.Instance?.ClearHover();
         VisualFeedbackManager.Instance?.ClearSelection();
 
-        // Update tutorial panels for new mode
-        tutorialPanel?.UpdateForMode(currentMode);
-        contextualTutorial?.ShowForMode(currentMode);
+        // Update tutorial for new mode
+        unifiedTutorial?.ShowForMode(currentMode);
 
         // Show confirmation when entering Analyze mode
         if (currentMode == Mode.Analyze)
@@ -256,9 +265,6 @@ public class OVRGraphController : MonoBehaviour
         {
             modeDisplayUI.UpdateModeDisplay(currentMode, currentGridAxis, gridRenderer != null ? gridRenderer.spacing : 0.1f);
         }
-
-        // Show tutorial tooltip for first-time mode usage
-        tutorialSystem?.ShowModeTooltip(currentMode);
     }
 
     void HandleTriggerInput()
@@ -286,7 +292,9 @@ public class OVRGraphController : MonoBehaviour
                 graphManager.CreateNode(GetGridPoint(markerTransform.position));
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
                 markerController?.Pulse();
-                contextualTutorial?.OnActionPerformed(Mode.AddNode);
+                // Notify tutorial system of action
+                if (unifiedTutorial != null)
+                    unifiedTutorial.OnActionPerformed(Mode.AddNode);
                 break;
             case Mode.AddEdge:
                 HandleAddEdge();
@@ -300,7 +308,9 @@ public class OVRGraphController : MonoBehaviour
                 {
                     nodeToToggle.ToggleSupport();
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-                    contextualTutorial?.OnActionPerformed(Mode.ToggleSupport);
+                    // Notify tutorial system of action
+                    if (unifiedTutorial != null)
+                        unifiedTutorial.OnActionPerformed(Mode.ToggleSupport);
                 }
                 break;
             case Mode.Move:
@@ -373,6 +383,32 @@ public class OVRGraphController : MonoBehaviour
                 if (surfaceFinder != null)
                 {
                     surfaceFinder.SetAnchor();
+                }
+                break;
+            case Mode.Import:
+                // Load SimpleTrussBridge example structure
+                SaveLoadManager saveLoadManager = FindObjectOfType<SaveLoadManager>();
+                if (saveLoadManager != null)
+                {
+                    bool success = saveLoadManager.LoadStructure("SimpleTrussBridge");
+                    if (success)
+                    {
+                        Debug.Log("[Import] Loaded: SimpleTrussBridge");
+                        HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
+                        modeDisplayUI?.ShowMessage("Loaded: SimpleTrussBridge", Color.green);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[Import] SimpleTrussBridge not found - no example to load");
+                        HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+                        modeDisplayUI?.ShowMessage("No structure file found", Color.yellow);
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[Import] SaveLoadManager not found - add it to the scene");
+                    HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+                    modeDisplayUI?.ShowMessage("Setup SaveLoadManager first", Color.yellow);
                 }
                 break;
         }
@@ -493,13 +529,14 @@ public class OVRGraphController : MonoBehaviour
 
     Vector3 GetGridPoint(Vector3 pos)
     {
-        if (gridRenderer == null) return pos;
+        // Only snap to grid if grid is set AND snap is enabled
+        if (gridRenderer == null || !gridRenderer.isGridSet || !gridRenderer.isSnapEnabled) return pos;
         return gridRenderer.GetClosestGridPoint(pos);
     }
 
     NodeBehaviour GetNodeAtMarker()
     {
-        NodeBehaviour[] nodes = FindObjectsOfType<NodeBehaviour>();
+        NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
         NodeBehaviour closest = null;
         float minDist = 0.03f;
         foreach (var node in nodes)
@@ -517,7 +554,7 @@ public class OVRGraphController : MonoBehaviour
 
     EdgeBehaviour GetEdgeAtMarker()
     {
-        EdgeBehaviour[] edges = FindObjectsOfType<EdgeBehaviour>();
+        EdgeBehaviour[] edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
         EdgeBehaviour closest = null;
         float minDist = 0.02f;
         foreach (var edge in edges)
@@ -536,7 +573,7 @@ public class OVRGraphController : MonoBehaviour
 
     LoadBehaviour GetLoadAtMarker()
     {
-        LoadBehaviour[] loads = FindObjectsOfType<LoadBehaviour>();
+        LoadBehaviour[] loads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
         LoadBehaviour closest = null;
         float minDist = 0.03f;
         foreach (var load in loads)
@@ -768,9 +805,13 @@ public class OVRGraphController : MonoBehaviour
                 for (int i = 0; i < mats.Length; i++)
                 {
                     mats[i] = new Material(mats[i]);
-                    Color c = mats[i].color;
-                    c.a = 0.3f;
-                    mats[i].color = c;
+                    // Check if material has _Color property (skip TextMeshPro materials)
+                    if (mats[i].HasProperty("_Color"))
+                    {
+                        Color c = mats[i].color;
+                        c.a = 0.3f;
+                        mats[i].color = c;
+                    }
                 }
                 rend.materials = mats;
             }

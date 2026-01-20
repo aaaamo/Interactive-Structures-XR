@@ -16,7 +16,7 @@ namespace InteractiveStructures.Controllers
         /// </summary>
         public static NodeBehaviour FindNodeAt(Vector3 position, float searchRadius = NODE_SEARCH_RADIUS)
         {
-            NodeBehaviour[] nodes = Object.FindObjectsOfType<NodeBehaviour>();
+            NodeBehaviour[] nodes = Object.FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
             NodeBehaviour closest = null;
             float minDist = searchRadius;
 
@@ -40,7 +40,7 @@ namespace InteractiveStructures.Controllers
         /// </summary>
         public static EdgeBehaviour FindEdgeAt(Vector3 position, float searchRadius = EDGE_SEARCH_RADIUS)
         {
-            EdgeBehaviour[] edges = Object.FindObjectsOfType<EdgeBehaviour>();
+            EdgeBehaviour[] edges = Object.FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
             EdgeBehaviour closest = null;
             float minDist = searchRadius;
 
@@ -70,7 +70,7 @@ namespace InteractiveStructures.Controllers
         /// </summary>
         public static LoadBehaviour FindLoadAt(Vector3 position, float searchRadius = LOAD_SEARCH_RADIUS)
         {
-            LoadBehaviour[] loads = Object.FindObjectsOfType<LoadBehaviour>();
+            LoadBehaviour[] loads = Object.FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
             LoadBehaviour closest = null;
             float minDist = searchRadius;
 

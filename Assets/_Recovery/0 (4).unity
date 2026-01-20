@@ -1327,10 +1327,7 @@ MonoBehaviour:
   ghostNodePrefab: {fileID: 6975473497868493926, guid: fdfe58b40bb8b7145919af91cbbbb5af, type: 3}
   ghostMaterial: {fileID: 0}
   modeDisplayUI: {fileID: 0}
-  tutorialSystem: {fileID: 0}
-  tutorialPanel: {fileID: 0}
   unifiedTutorial: {fileID: 207147543}
-  contextualTutorial: {fileID: 0}
 --- !u!4 &914555519
 Transform:
   m_ObjectHideFlags: 0
@@ -2225,6 +2222,8 @@ MonoBehaviour:
   minOpacity: 0.2
   maxOpacity: 1
   isActive: 0
+  isGridSet: 0
+  isSnapEnabled: 0
 --- !u!4 &2087109989
 Transform:
   m_ObjectHideFlags: 0

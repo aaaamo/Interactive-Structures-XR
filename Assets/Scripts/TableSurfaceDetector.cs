@@ -92,7 +92,7 @@ public class TableSurfaceDetector : MonoBehaviour
                 if (area >= minTableArea)
                 {
                     validTables.Add(table);
-                    Debug.Log($"[TABLE] Valid table found: {rect.width:F2}m x {rect.height:F2}m (area: {area:F2}m²)");
+                    Debug.Log($"[TABLE] Valid table found: {rect.width:F2}m x {rect.height:F2}m (area: {area:F2}mï¿½)");
                 }
             }
         }
@@ -278,7 +278,7 @@ public class TableSurfaceDetector : MonoBehaviour
         List<MRUKAnchor> result = new List<MRUKAnchor>();
 
         // Get all MRUKAnchor components in the scene
-        MRUKAnchor[] allAnchors = Object.FindObjectsOfType<MRUKAnchor>();
+        MRUKAnchor[] allAnchors = Object.FindObjectsByType<MRUKAnchor>(FindObjectsSortMode.None);
 
         foreach (var anchor in allAnchors)
         {

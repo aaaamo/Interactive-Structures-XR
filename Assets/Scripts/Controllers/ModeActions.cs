@@ -16,7 +16,7 @@ namespace InteractiveStructures.Controllers
         [SerializeField] private StructuralAnalyzer structuralAnalyzer;
         [SerializeField] private RaycastSurfaceFinder surfaceFinder;
         [SerializeField] private ModeDisplayUI modeDisplayUI;
-        [SerializeField] private ContextualTutorialPanel contextualTutorial;
+        [SerializeField] private UnifiedTutorialSystem unifiedTutorial;
 
         // Temporary objects for multi-step actions
         private NodeBehaviour firstSelectedNode;
@@ -25,7 +25,7 @@ namespace InteractiveStructures.Controllers
         private LoadBehaviour tempLoad;
 
         public void Initialize(GraphManager gm, Transform marker, GridPointRenderer grid,
-            StructuralAnalyzer analyzer, RaycastSurfaceFinder surface, ModeDisplayUI ui, ContextualTutorialPanel tutorial)
+            StructuralAnalyzer analyzer, RaycastSurfaceFinder surface, ModeDisplayUI ui, UnifiedTutorialSystem tutorial)
         {
             graphManager = gm;
             markerTransform = marker;
@@ -33,7 +33,7 @@ namespace InteractiveStructures.Controllers
             structuralAnalyzer = analyzer;
             surfaceFinder = surface;
             modeDisplayUI = ui;
-            contextualTutorial = tutorial;
+            unifiedTutorial = tutorial;
         }
 
         #region Public Action Methods
@@ -43,7 +43,7 @@ namespace InteractiveStructures.Controllers
             Vector3 snapPos = GetGridPoint(markerTransform.position);
             graphManager.CreateNode(snapPos);
             HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-            contextualTutorial?.OnActionPerformed(OVRGraphController.Mode.AddNode);
+            unifiedTutorial?.OnActionPerformed(OVRGraphController.Mode.AddNode);
         }
 
         public void AddEdge()
@@ -114,7 +114,7 @@ namespace InteractiveStructures.Controllers
             {
                 node.ToggleSupport();
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-                contextualTutorial?.OnActionPerformed(OVRGraphController.Mode.ToggleSupport);
+                unifiedTutorial?.OnActionPerformed(OVRGraphController.Mode.ToggleSupport);
             }
         }
 

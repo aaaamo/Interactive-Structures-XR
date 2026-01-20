@@ -205,6 +205,8 @@ public class RaycastSurfaceFinder : MonoBehaviour
             Vector3 direction = directionAnchor - originAnchor;
             Vector3 projected = new Vector3(direction.x, 0, direction.z).normalized;
             gridPointRenderer.xVec = projected;
+            gridPointRenderer.isGridSet = true; // Mark grid as explicitly set by user
+            gridPointRenderer.isSnapEnabled = true; // Enable snap when grid is set
             gridPointRenderer.RefreshGrid();
         }
     }

@@ -83,7 +83,7 @@ public class ExampleStructures : MonoBehaviour
     /// </summary>
     void ClearCurrentStructure()
     {
-        NodeBehaviour[] allNodes = FindObjectsOfType<NodeBehaviour>();
+        NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
         foreach (var node in allNodes)
         {
             if (node != null)
@@ -106,13 +106,13 @@ public class ExampleStructures : MonoBehaviour
             }
         }
 
-        EdgeBehaviour[] allEdges = FindObjectsOfType<EdgeBehaviour>();
+        EdgeBehaviour[] allEdges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
         foreach (var edge in allEdges)
         {
             if (edge != null) Destroy(edge.gameObject);
         }
 
-        LoadBehaviour[] allLoads = FindObjectsOfType<LoadBehaviour>();
+        LoadBehaviour[] allLoads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
         foreach (var load in allLoads)
         {
             if (load != null) Destroy(load.gameObject);

@@ -25,6 +25,8 @@ public class GridPointRenderer : MonoBehaviour
 
     private GameObject gridParent;
     public bool isActive;
+    public bool isGridSet = false; // True only after user explicitly sets the grid anchor
+    public bool isSnapEnabled = false; // Can be toggled on/off by user
 
     void Update()
     {
