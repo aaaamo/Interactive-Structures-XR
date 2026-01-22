@@ -1,12 +1,19 @@
 using UnityEngine;
 using System.Collections.Generic;
 using TMPro;
+using Unity.Netcode;
 
-public class NodeBehaviour : MonoBehaviour
+public class NodeBehaviour : NetworkBehaviour
 {
     public List<EdgeBehaviour> connectedEdges = new List<EdgeBehaviour>();
     public List<LoadBehaviour> loads = new List<LoadBehaviour>();
-    public bool isSupport = false;
+
+    public NetworkVariable<bool> isSupportNet = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    public bool isSupport
+    {
+        get => isSupportNet.Value;
+        set { if (IsOwner) isSupportNet.Value = value; }
+    }
 
     public GameObject supportVisual;
     public GameObject freeVisual;
@@ -20,6 +27,16 @@ public class NodeBehaviour : MonoBehaviour
     private Transform mainCameraTransform;
     private Vector3 lastPosition;
     private int lastLoadCount;
+
+    public override void OnNetworkSpawn()
+    {
+        isSupportNet.OnValueChanged += (oldVal, newVal) =>
+        {
+            ApplyVisualState();
+            UpdateTextContent();
+        };
+        ApplyVisualState();
+    }
 
     void Awake()
     {
@@ -69,15 +86,33 @@ public class NodeBehaviour : MonoBehaviour
 
     public void ToggleSupport()
     {
-        isSupport = !isSupport;
-        ApplyVisualState();
-        UpdateTextContent();
+        if (IsOwner)
+        {
+            isSupport = !isSupport;
+        }
+        else
+        {
+            ToggleSupportServerRpc();
+        }
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    void ToggleSupportServerRpc()
+    {
+        isSupportNet.Value = !isSupportNet.Value;
+    }
+
+    [ServerRpc(RequireOwnership = false)]
+    public void MoveServerRpc(Vector3 newPosition)
+    {
+        transform.position = newPosition;
     }
 
     private void ApplyVisualState()
     {
-        if (freeVisual != null) freeVisual.SetActive(!isSupport);
-        if (supportVisual != null) supportVisual.SetActive(isSupport);
+        bool support = isSupportNet.Value;
+        if (freeVisual != null) freeVisual.SetActive(!support);
+        if (supportVisual != null) supportVisual.SetActive(support);
     }
 
     public void ShowDisplacement(float scale, Material displacedMaterial)

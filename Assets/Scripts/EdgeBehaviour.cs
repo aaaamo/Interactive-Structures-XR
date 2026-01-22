@@ -1,9 +1,13 @@
 using UnityEngine;
+using Unity.Netcode;
 
-public class EdgeBehaviour : MonoBehaviour
+public class EdgeBehaviour : NetworkBehaviour
 {
     public NodeBehaviour nodeA;
     public NodeBehaviour nodeB;
+
+    public NetworkVariable<ulong> nodeAId = new NetworkVariable<ulong>();
+    public NetworkVariable<ulong> nodeBId = new NetworkVariable<ulong>();
 
     private Transform edgeTransform;
 
@@ -14,6 +18,48 @@ public class EdgeBehaviour : MonoBehaviour
         edgeTransform = transform;
         if (edgeTransform == null)
             Debug.LogError("Edge transform missing!");
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        nodeAId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
+        nodeBId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
+        ConnectNodes();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (nodeA != null && nodeA.connectedEdges.Contains(this))
+            nodeA.connectedEdges.Remove(this);
+        if (nodeB != null && nodeB.connectedEdges.Contains(this))
+            nodeB.connectedEdges.Remove(this);
+    }
+
+    void ConnectNodes()
+    {
+        if (NetworkManager.Singleton == null) return;
+
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodeAId.Value, out NetworkObject objA))
+        {
+            nodeA = objA.GetComponent<NodeBehaviour>();
+            if (nodeA != null && !nodeA.connectedEdges.Contains(this)) nodeA.connectedEdges.Add(this);
+        }
+
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodeBId.Value, out NetworkObject objB))
+        {
+            nodeB = objB.GetComponent<NodeBehaviour>();
+            if (nodeB != null && !nodeB.connectedEdges.Contains(this)) nodeB.connectedEdges.Add(this);
+        }
+
+        UpdateEdgePosition();
+    }
+
+    void Update()
+    {
+        if (nodeA != null && nodeB != null)
+        {
+            UpdateEdgePosition();
+        }
     }
 
     public void UpdateEdgePosition(Vector3? tempEnd = null)

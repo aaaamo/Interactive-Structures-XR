@@ -26,6 +26,8 @@ public class StructuralAnalyzer : MonoBehaviour
 
     IEnumerator PerformAnalysisCoroutine()
     {
+        Debug.Log("[StructuralAnalyzer] PerformAnalysisCoroutine started");
+
         // Show loading indicator
         loadingIndicator?.Show("Analyzing Structure");
         HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
@@ -33,15 +35,33 @@ public class StructuralAnalyzer : MonoBehaviour
         // Wait one frame for visual feedback
         yield return null;
 
+        // graphManager is optional - analysis works without it
         if (graphManager == null)
         {
-            Debug.LogError("GraphManager reference missing!");
-            loadingIndicator?.Hide();
-            yield break;
+            Debug.LogWarning("[StructuralAnalyzer] GraphManager not assigned, but analysis can proceed");
         }
 
         NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.InstanceID);
         EdgeBehaviour[] allEdges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.InstanceID);
+        LoadBehaviour[] allLoads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.InstanceID);
+
+        Debug.Log($"[StructuralAnalyzer] Found {allNodes.Length} nodes, {allEdges.Length} edges, {allLoads.Length} loads");
+
+        // Debug: Check node loads
+        int nodesWithLoads = 0;
+        foreach (var node in allNodes)
+        {
+            if (node.loads != null && node.loads.Count > 0)
+            {
+                nodesWithLoads++;
+                foreach (var load in node.loads)
+                {
+                    if (load != null)
+                        Debug.Log($"[StructuralAnalyzer] Node at {node.transform.position} has load: dir={load.direction}, mag={load.magnitude}");
+                }
+            }
+        }
+        Debug.Log($"[StructuralAnalyzer] Nodes with loads: {nodesWithLoads}");
 
         if (allNodes.Length == 0)
         {
@@ -70,6 +90,31 @@ public class StructuralAnalyzer : MonoBehaviour
         {
             StructureData data = subgraphs[i];
             TrussAnalysisResult result = TrussAnalyzer.AnalyzeTruss(data, youngModulus, crossSectionalArea);
+
+            // Debug: Log analysis results
+            if (result.errorMessage != null)
+            {
+                Debug.LogWarning($"[StructuralAnalyzer] Subgraph {i} error: {result.errorMessage}");
+            }
+            else
+            {
+                Debug.Log($"[StructuralAnalyzer] Subgraph {i}: {data.nodes.Count} nodes, {data.edges.Count} edges, {data.nodeLoads.Count} loaded nodes");
+                if (result.displacements != null)
+                {
+                    foreach (var kvp in result.displacements)
+                    {
+                        Debug.Log($"[StructuralAnalyzer] Node {kvp.Key} displacement: {kvp.Value} (mag: {kvp.Value.magnitude})");
+                    }
+                }
+                if (result.memberForces != null)
+                {
+                    for (int j = 0; j < result.memberForces.Length; j++)
+                    {
+                        Debug.Log($"[StructuralAnalyzer] Member {j} force: {result.memberForces[j]}");
+                    }
+                }
+            }
+
             results.Add(new SubgraphAnalysisResult
             {
                 subgraphIndex = i,
@@ -98,6 +143,28 @@ public class StructuralAnalyzer : MonoBehaviour
         if (resultNow.Count > 0)
         {
             VisualizeAllForces(resultNow);
+        }
+    }
+
+    public void ClearVisuals()
+    {
+        // Hide displacements on nodes
+        NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
+        foreach (var node in allNodes)
+        {
+            node.HideDisplacement();
+        }
+
+        // Hide displacements on edges and reset color
+        EdgeBehaviour[] allEdges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
+        foreach (var edge in allEdges)
+        {
+            edge.HideDisplacement();
+            Renderer rend = edge.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                rend.material.color = Color.white;
+            }
         }
     }
 
@@ -292,7 +359,7 @@ public class StructuralAnalyzer : MonoBehaviour
     {
         foreach (var subResult in results)
         {
-            float subMaxForce= 0f;
+            float subMaxForce = 0f;
             if (subResult.result.memberForces != null)
             {
                 foreach (float f in subResult.result.memberForces)
@@ -358,33 +425,6 @@ public class StructuralAnalyzer : MonoBehaviour
             edge.ShowDisplacement(scale, displacedMaterialPrefab);
         }
     }
-
-    //void VisualizeDisplacements(TrussAnalysisResult result, StructureData data)
-    //{
-    //    if (result.displacements == null) return;
-    //    for (int i = 0; i < data.nodes.Count; i++)
-    //    {
-    //        NodeBehaviour node = data.nodes[i];
-    //        if (result.displacements.ContainsKey(i))
-    //        {
-    //            Vector3 disp = result.displacements[i];
-    //            float scale = 1000000000.0f;
-
-    //            Vector3 displacedPos = node.transform.position + disp * scale;
-    //            NodeBehaviour displacedNode = graphManager.CreateNode(displacedPos);
-    //            Color displacedColor = Color.red;
-    //            displacedColor.a = 0.2f;
-    //            Renderer freeRend = displacedNode.freeVisual.GetComponent<Renderer>();
-    //            if (freeRend != null)
-    //            {
-    //                freeRend.material.color = displacedColor;
-    //            } else
-    //            {
-    //                Debug.LogWarning("Displaced node missing Renderer component.");
-    //            }
-    //        }
-    //    }
-    //}
 
     void DisplayResults(string message)
     {

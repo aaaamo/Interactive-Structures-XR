@@ -361,7 +361,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e48d6bf5c11e81c409209f45c385738d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StructuralAnalyzer
-  graphManager: {fileID: 2075418298}
+  graphManager: {fileID: 0}
   resultsDisplay: {fileID: 1050267881}
   loadingIndicator: {fileID: 0}
   youngModulus: 2e+11
@@ -933,8 +933,7 @@ MonoBehaviour:
   statusText: {fileID: 0}
   uiAnchor: {fileID: 0}
   defaultHostIP: 192.168.1.100
-  discoveryPort: 47777
-  graphController: {fileID: 914555518}
+  graphController: {fileID: 0}
   state: 0
 --- !u!4 &727710707
 Transform:
@@ -1384,10 +1383,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: NetworkManager
       objectReference: {fileID: 0}
-    - target: {fileID: 5177507954668755068, guid: 58441157858c39541b101ea446f3da34, type: 3}
-      propertyPath: 'NetworkConfig.Prefabs.NetworkPrefabsLists.Array.data[0]'
-      value: 
-      objectReference: {fileID: 11400000, guid: 5423b9fd989a25d4180ffc6a46b0f403, type: 2}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -1429,7 +1424,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::OVRGraphController
   currentMode: 0
   currentGridAxis: 0
-  graphManager: {fileID: 2075418298}
+  graphManager: {fileID: 0}
   markerTransform: {fileID: 256993558}
   modeText: {fileID: 535932914}
   structuralAnalyzer: {fileID: 335742038}
@@ -1488,50 +1483,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aebd5da9a8bd22243b407f1927f4965b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!1 &1031855970
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1031855972}
-  - component: {fileID: 1031855971}
-  m_Layer: 0
-  m_Name: LogFilter
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1031855971
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1031855970}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f646bd1e3c2b0f640a8cbe3f6e785806, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LogFilter
---- !u!4 &1031855972
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1031855970}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1050267880
 GameObject:
   m_ObjectHideFlags: 0
@@ -1917,7 +1868,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9a141245fc4a314eb834f8081006b30, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SaveLoadManager
-  graphManager: {fileID: 2075418298}
+  graphManager: {fileID: 0}
   saveDirectory: StructureSaves
   defaultFileName: MyStructure
 --- !u!4 &1628200846
@@ -2351,7 +2302,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 973175329
+  GlobalObjectIdHash: 1445874767
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -4199,4 +4150,3 @@ SceneRoots:
   - {fileID: 1628200846}
   - {fileID: 727710707}
   - {fileID: 891848215}
-  - {fileID: 1031855972}

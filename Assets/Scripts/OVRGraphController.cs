@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using Unity.Netcode;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
-    public Mode currentMode = Mode.AddNode;
+    public enum Mode { Network, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
+    public Mode currentMode = Mode.Network;
     public enum GridAxis { X, Y, Z, Spacing }
     public GridAxis currentGridAxis = GridAxis.X;
 
@@ -27,10 +28,13 @@ public class OVRGraphController : MonoBehaviour
     [Header("Tutorial System")]
     public UnifiedTutorialSystem unifiedTutorial;
 
+    [Header("Network")]
+    public NetworkConnect networkConnect;
+
     private NodeBehaviour firstSelectedNode;
     private EdgeBehaviour tempEdge;
     private NodeBehaviour firstLoadNode = null;
-    private LoadBehaviour tempLoad = null;
+    private GameObject ghostLoad = null;
     private bool triggerHeldLastFrame = false;
     private float lastThumbTime = 0f;
     private float thumbCooldown = 0.3f;
@@ -43,6 +47,18 @@ public class OVRGraphController : MonoBehaviour
 
     void Start()
     {
+        Debug.LogWarning("[OVRGraphController] Start() called");
+
+        // Auto-find GraphManager if not assigned
+        if (graphManager == null)
+        {
+            graphManager = FindObjectOfType<GraphManager>();
+            if (graphManager == null)
+                Debug.LogError("[OVRGraphController] GraphManager not found in scene!");
+            else
+                Debug.Log("[OVRGraphController] GraphManager auto-assigned");
+        }
+
         UpdateModeText();
         if (currentMode == Mode.Analyze)
         {
@@ -69,8 +85,41 @@ public class OVRGraphController : MonoBehaviour
 
     void Update()
     {
-        if (graphManager == null || markerTransform == null) return;
+        if (graphManager == null || markerTransform == null)
+        {
+            Debug.LogWarning($"[OVRGraphController] Missing reference - graphManager: {graphManager != null}, markerTransform: {markerTransform != null}");
+            return;
+        }
+
+        // Network 모드일 때는 네트워크 UI만 처리
+        if (currentMode == Mode.Network)
+        {
+            HandleModeSwitch();
+            UpdateModeText();
+            return;
+        }
+
+        // 네트워크 연결 상태 확인
+        bool isConnected = NetworkManager.Singleton != null &&
+                          (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
+
         HandleModeSwitch();
+
+        // Analyze 모드는 네트워크 연결 없이도 작동 (로컬 분석)
+        if (currentMode == Mode.Analyze)
+        {
+            HandleTriggerInput();
+            UpdateModeText();
+            return;
+        }
+
+        // 그 외 모드는 네트워크 연결 필요
+        if (!isConnected)
+        {
+            UpdateModeText();
+            return;
+        }
+
         HandleTriggerInput();
         UpdateTemporaryEdge();
         UpdateTemporaryLoad();
@@ -87,11 +136,13 @@ public class OVRGraphController : MonoBehaviour
 
         if (rightThumbAxis.x > 0.7f)
         {
+            Debug.Log($"[OVRGraphController] CycleMode +1 from {currentMode}");
             CycleMode(1);
             lastThumbTime = Time.time;
         }
         else if (rightThumbAxis.x < -0.7f)
         {
+            Debug.Log($"[OVRGraphController] CycleMode -1 from {currentMode}");
             CycleMode(-1);
             lastThumbTime = Time.time;
         }
@@ -136,7 +187,7 @@ public class OVRGraphController : MonoBehaviour
             {
                 CycleGridAxis(-1);
                 lastThumbTime = Time.time;
-            } 
+            }
             else if (leftThumbAxis.y > 0.7f)
             {
                 if (currentGridAxis == GridAxis.Spacing)
@@ -163,7 +214,7 @@ public class OVRGraphController : MonoBehaviour
                 if (currentGridAxis == GridAxis.Spacing)
                 {
                     gridRenderer.spacing = Mathf.Max(0.01f, gridRenderer.spacing - 0.01f);
-                } 
+                }
                 else if (currentGridAxis == GridAxis.X)
                 {
                     gridRenderer.size.x = Mathf.Max(1, gridRenderer.size.x - 1);
@@ -207,14 +258,14 @@ public class OVRGraphController : MonoBehaviour
         CleanupGhostObjects();
         if (tempEdge != null)
         {
-            graphManager.RemoveEdge(tempEdge);
+            graphManager.RemoveLocalEdge(tempEdge);
             tempEdge = null;
             firstSelectedNode = null;
         }
-        if (tempLoad != null)
+        if (ghostLoad != null)
         {
-            Destroy(tempLoad.gameObject);
-            tempLoad = null;
+            Destroy(ghostLoad);
+            ghostLoad = null;
             firstLoadNode = null;
         }
 
@@ -234,6 +285,7 @@ public class OVRGraphController : MonoBehaviour
         else
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
+            structuralAnalyzer?.ClearVisuals();
         }
     }
 
@@ -250,13 +302,36 @@ public class OVRGraphController : MonoBehaviour
         if (modeText != null)
         {
             modeText.text = "Mode: " + currentMode.ToString();
-            if (currentMode == Mode.Grid)
+
+            if (currentMode == Mode.Network)
+            {
+                bool isConnected = NetworkManager.Singleton != null &&
+                                  (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
+                if (isConnected)
+                {
+                    string role = NetworkManager.Singleton.IsHost ? "HOST" : "CLIENT";
+                    modeText.text += $"\n<color=green>Connected as {role}</color>";
+                }
+                else
+                {
+                    modeText.text += "\n<color=yellow>Not Connected</color>";
+                }
+            }
+            else if (currentMode == Mode.Grid)
             {
                 modeText.text += "\nGrid Axis: " + currentGridAxis.ToString();
                 if (currentGridAxis == GridAxis.Spacing)
                 {
                     modeText.text += $" = {gridRenderer.spacing:F3}";
                 }
+            }
+
+            // 네트워크 연결 안 됐으면 경고 표시
+            bool connected = NetworkManager.Singleton != null &&
+                            (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
+            if (!connected && currentMode != Mode.Network)
+            {
+                modeText.text += "\n<color=red>Network not connected!</color>";
             }
         }
 
@@ -286,10 +361,13 @@ public class OVRGraphController : MonoBehaviour
 
     void OnTriggerPressed()
     {
+        Debug.Log($"[OVRGraphController] OnTriggerPressed - Mode: {currentMode}");
+
         switch (currentMode)
         {
             case Mode.AddNode:
-                graphManager.CreateNode(GetGridPoint(markerTransform.position));
+                Debug.Log($"[OVRGraphController] Calling CreateNodeServerRpc - GraphManager IsSpawned: {graphManager.IsSpawned}");
+                graphManager.CreateNodeServerRpc(GetGridPoint(markerTransform.position));
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
                 markerController?.Pulse();
                 // Notify tutorial system of action
@@ -337,23 +415,21 @@ public class OVRGraphController : MonoBehaviour
                 var nodeToDelete = GetNodeAtMarker();
                 if (nodeToDelete != null)
                 {
-                    DeleteNode(nodeToDelete);
+                    graphManager.DeleteNetworkObjectServerRpc(nodeToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                     break;
                 }
                 var edgeToDelete = GetEdgeAtMarker();
                 if (edgeToDelete != null)
                 {
-                    DeleteEdge(edgeToDelete);
+                    graphManager.DeleteNetworkObjectServerRpc(edgeToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                     break;
                 }
                 var loadToDelete = GetLoadAtMarker();
                 if (loadToDelete != null)
                 {
-                    if (loadToDelete.node != null)
-                        loadToDelete.node.loads.Remove(loadToDelete);
-                    Destroy(loadToDelete.gameObject);
+                    graphManager.DeleteNetworkObjectServerRpc(loadToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
                 }
                 break;
@@ -390,19 +466,21 @@ public class OVRGraphController : MonoBehaviour
                 SaveLoadManager saveLoadManager = FindObjectOfType<SaveLoadManager>();
                 if (saveLoadManager != null)
                 {
-                    bool success = saveLoadManager.LoadStructure("SimpleTrussBridge");
-                    if (success)
+                    saveLoadManager.LoadStructure("SimpleTrussBridge", (success) =>
                     {
-                        Debug.Log("[Import] Loaded: SimpleTrussBridge");
-                        HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
-                        modeDisplayUI?.ShowMessage("Loaded: SimpleTrussBridge", Color.green);
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[Import] SimpleTrussBridge not found - no example to load");
-                        HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
-                        modeDisplayUI?.ShowMessage("No structure file found", Color.yellow);
-                    }
+                        if (success)
+                        {
+                            Debug.Log("[Import] Loaded: SimpleTrussBridge");
+                            // HapticFeedback is already triggered in SaveLoadManager
+                            modeDisplayUI?.ShowMessage("Loaded: SimpleTrussBridge", Color.green);
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[Import] SimpleTrussBridge not found - no example to load");
+                            // HapticFeedback is already triggered in SaveLoadManager
+                            modeDisplayUI?.ShowMessage("No structure file found", Color.yellow);
+                        }
+                    });
                 }
                 else
                 {
@@ -441,7 +519,7 @@ public class OVRGraphController : MonoBehaviour
         if (firstSelectedNode == null)
         {
             firstSelectedNode = node;
-            tempEdge = graphManager.CreateEdge(firstSelectedNode);
+            tempEdge = graphManager.CreateLocalEdge(firstSelectedNode);
             HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
             VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(0.2f, 1f, 0.2f, 1f));
         }
@@ -464,24 +542,17 @@ public class OVRGraphController : MonoBehaviour
 
             if (!edgeExists)
             {
-                tempEdge.nodeB = node;
-                if (firstSelectedNode.connectedEdges == null)
-                    firstSelectedNode.connectedEdges = new List<EdgeBehaviour>();
-                firstSelectedNode.connectedEdges.Add(tempEdge);
-                if (node.connectedEdges == null)
-                    node.connectedEdges = new List<EdgeBehaviour>();
-                node.connectedEdges.Add(tempEdge);
-                tempEdge.UpdateEdgePosition();
+                graphManager.CreateEdgeServerRpc(firstSelectedNode.NetworkObjectId, node.NetworkObjectId);
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
             }
             else
             {
-                graphManager.RemoveEdge(tempEdge);
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Error);
                 modeDisplayUI?.ShowMessage("Edge already exists between these nodes!", new Color(1f, 0.3f, 0.3f));
                 StartCoroutine(ClearMessageAfterDelay(2f));
             }
             VisualFeedbackManager.Instance?.ClearSelection();
+            if (tempEdge != null) graphManager.RemoveLocalEdge(tempEdge);
             firstSelectedNode = null;
             tempEdge = null;
         }
@@ -494,7 +565,17 @@ public class OVRGraphController : MonoBehaviour
             NodeBehaviour node = GetNodeAtMarker();
             if (node == null) return;
             firstLoadNode = node;
-            tempLoad = graphManager.CreateLoad(firstLoadNode, Vector3.down, 1f);
+
+            // Create ghost load for visualization
+            if (graphManager.loadPrefab != null)
+            {
+                ghostLoad = Instantiate(graphManager.loadPrefab, node.transform.position, Quaternion.identity);
+                var netObj = ghostLoad.GetComponent<NetworkObject>();
+                if (netObj != null) Destroy(netObj);
+                var lb = ghostLoad.GetComponent<LoadBehaviour>();
+                if (lb != null) { lb.node = node; lb.UpdateArrow(); }
+            }
+
             HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
             VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(1f, 0.6f, 0.2f, 1f));
         }
@@ -502,13 +583,13 @@ public class OVRGraphController : MonoBehaviour
         {
             Vector3 dir = markerTransform.position - firstLoadNode.transform.position;
             float mag = dir.magnitude;
-            tempLoad.SetDirection(dir.normalized);
-            tempLoad.SetMagnitude(mag);
-            firstLoadNode.loads.Add(tempLoad);
+
+            graphManager.CreateLoadServerRpc(firstLoadNode.NetworkObjectId, dir.normalized, mag);
+
             HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
             VisualFeedbackManager.Instance?.ClearSelection();
             firstLoadNode = null;
-            tempLoad = null;
+            if (ghostLoad != null) { Destroy(ghostLoad); ghostLoad = null; }
         }
     }
 
@@ -520,11 +601,16 @@ public class OVRGraphController : MonoBehaviour
 
     void UpdateTemporaryLoad()
     {
-        if (firstLoadNode == null || tempLoad == null) return;
+        if (firstLoadNode == null || ghostLoad == null) return;
         Vector3 dir = markerTransform.position - firstLoadNode.transform.position;
         float mag = dir.magnitude;
-        tempLoad.SetDirection(dir.normalized);
-        tempLoad.SetMagnitude(mag);
+
+        var lb = ghostLoad.GetComponent<LoadBehaviour>();
+        if (lb != null)
+        {
+            lb.SetDirection(dir.normalized);
+            lb.SetMagnitude(mag);
+        }
     }
 
     Vector3 GetGridPoint(Vector3 pos)
@@ -600,19 +686,24 @@ public class OVRGraphController : MonoBehaviour
     IEnumerator MoveNodeCoroutine(NodeBehaviour node)
     {
         if (node == null) yield break;
+
+        // Request ownership if needed (assuming Server Authoritative or similar)
+        // For simplicity, we assume Client Authoritative NetworkTransform
+
         Vector3 offset = node.transform.position - markerTransform.position;
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
             Vector3 movedPos = GetGridPoint(markerTransform.position + offset);
-            node.transform.position = movedPos;
-            if (node.connectedEdges != null)
+
+            if (NetworkManager.Singleton.IsServer)
             {
-                foreach (var edge in node.connectedEdges)
-                {
-                    if (edge != null)
-                        edge.UpdateEdgePosition();
-                }
+                node.transform.position = movedPos;
             }
+            else
+            {
+                node.MoveServerRpc(movedPos);
+            }
+            // Edges update automatically in their Update() loop
             yield return null;
         }
     }
@@ -624,18 +715,18 @@ public class OVRGraphController : MonoBehaviour
         Vector3 offsetB = edge.nodeB.transform.position - markerTransform.position;
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
-            edge.nodeA.transform.position = markerTransform.position + offsetA;
-            edge.nodeB.transform.position = markerTransform.position + offsetB;
-            foreach (var node in new NodeBehaviour[] { edge.nodeA, edge.nodeB })
+            Vector3 newPosA = markerTransform.position + offsetA;
+            Vector3 newPosB = markerTransform.position + offsetB;
+
+            if (NetworkManager.Singleton.IsServer)
             {
-                if (node.connectedEdges != null)
-                {
-                    foreach (var e in node.connectedEdges)
-                    {
-                        if (e != null)
-                            e.UpdateEdgePosition();
-                    }
-                }
+                edge.nodeA.transform.position = newPosA;
+                edge.nodeB.transform.position = newPosB;
+            }
+            else
+            {
+                edge.nodeA.MoveServerRpc(newPosA);
+                edge.nodeB.MoveServerRpc(newPosB);
             }
             yield return null;
         }
@@ -649,8 +740,16 @@ public class OVRGraphController : MonoBehaviour
         {
             Vector3 dir = (markerTransform.position + offset) - load.node.transform.position;
             float mag = dir.magnitude;
-            load.SetDirection(dir.normalized);
-            load.SetMagnitude(mag);
+
+            if (NetworkManager.Singleton.IsServer)
+            {
+                load.directionNet.Value = dir.normalized;
+                load.magnitudeNet.Value = mag;
+            }
+            else
+            {
+                load.UpdateLoadServerRpc(dir.normalized, mag);
+            }
             yield return null;
         }
     }
@@ -686,55 +785,15 @@ public class OVRGraphController : MonoBehaviour
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
             foreach (var node in connectedNodes)
-                node.transform.position = markerTransform.position + offsets[node];
-            foreach (var node in connectedNodes)
             {
-                if (node.connectedEdges != null)
-                {
-                    foreach (var edge in node.connectedEdges)
-                        edge?.UpdateEdgePosition();
-                }
+                Vector3 newPos = markerTransform.position + offsets[node];
+                if (NetworkManager.Singleton.IsServer)
+                    node.transform.position = newPos;
+                else
+                    node.MoveServerRpc(newPos);
             }
             yield return null;
         }
-    }
-
-    void DeleteNode(NodeBehaviour node)
-    {
-        if (node == null) return;
-        if (node.loads != null)
-        {
-            foreach (var load in node.loads)
-            {
-                if (load != null)
-                    Destroy(load.gameObject);
-            }
-        }
-        if (node.connectedEdges != null)
-        {
-            foreach (var edge in node.connectedEdges)
-            {
-                if (edge != null)
-                {
-                    if (edge.nodeA != null && edge.nodeA != node)
-                        edge.nodeA.connectedEdges?.Remove(edge);
-                    if (edge.nodeB != null && edge.nodeB != node)
-                        edge.nodeB.connectedEdges?.Remove(edge);
-                    graphManager.RemoveEdge(edge);
-                }
-            }
-        }
-        Destroy(node.gameObject);
-    }
-
-    void DeleteEdge(EdgeBehaviour edge)
-    {
-        if (edge == null) return;
-        if (edge.nodeA != null)
-            edge.nodeA.connectedEdges?.Remove(edge);
-        if (edge.nodeB != null)
-            edge.nodeB.connectedEdges?.Remove(edge);
-        graphManager.RemoveEdge(edge);
     }
 
     // ========== VISUAL FEEDBACK METHODS ==========
