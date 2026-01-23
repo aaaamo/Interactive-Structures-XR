@@ -1,12 +1,17 @@
 using UnityEngine;
 using Unity.Netcode;
 using System.Collections.Generic;
+using Unity.Netcode.Components;
 
 public class GraphManager : NetworkBehaviour
 {
     public GameObject nodePrefab;
     public GameObject edgePrefab;
     public GameObject loadPrefab;
+    public WorldCoordinateManager worldCoordinateManager;
+
+    // Unified access to ParentWorld
+    private Transform ParentWorld => worldCoordinateManager?.parentWorld;
 
     public override void OnNetworkSpawn()
     {
@@ -15,12 +20,20 @@ public class GraphManager : NetworkBehaviour
     }
 
     [ServerRpc(RequireOwnership = false)]
-    public void CreateNodeServerRpc(Vector3 position)
+    public void CreateNodeServerRpc(Vector3 localPosition)
     {
-        Debug.Log($"[GraphManager] CreateNodeServerRpc called at {position}");
-        GameObject obj = Instantiate(nodePrefab, position, Quaternion.identity);
+        Debug.Log($"[GraphManager] CreateNodeServerRpc called at local position {localPosition}");
+        // Convert local position to server's world position for instantiation
+        GameObject obj = Instantiate(nodePrefab, localPosition, Quaternion.identity);
+
+        // Set initial position in NetworkVariable BEFORE spawning
+        // This allows clients to read the correct position immediately on spawn
+        NodeBehaviour node = obj.GetComponent<NodeBehaviour>();
+
         obj.GetComponent<NetworkObject>().Spawn();
-        Debug.Log($"[GraphManager] Node spawned successfully");
+        obj.GetComponent<NetworkObject>().TrySetParent(ParentWorld.GetComponent<NetworkObject>(), false);
+        // Ensure local position is exactly what was requested (fixes floating point drift)
+        Debug.Log($"[GraphManager] Node spawned successfully at local position {localPosition}");
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -33,21 +46,51 @@ public class GraphManager : NetworkBehaviour
         edge.nodeBId.Value = nodeBId;
 
         edgeObj.GetComponent<NetworkObject>().Spawn();
+        edgeObj.GetComponent<NetworkObject>().TrySetParent(ParentWorld.GetComponent<NetworkObject>());
     }
 
     [ServerRpc(RequireOwnership = false)]
-    public void CreateLoadServerRpc(ulong nodeId, Vector3 direction, float magnitude)
+    public void CreateLoadServerRpc(ulong nodeId, Vector3 localDirection, float magnitude)
     {
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodeId, out NetworkObject nodeObj)) return;
+        Debug.Log($"[GraphManager] Attempting to create load for Node ID: {nodeId}");
 
-        GameObject loadObj = Instantiate(loadPrefab, nodeObj.transform.position, Quaternion.identity);
-        LoadBehaviour load = loadObj.GetComponent<LoadBehaviour>();
+        // 1. Find the Node via its NetworkObjectId
+        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(nodeId, out NetworkObject nodeNetObj))
+        {
+            Debug.LogError($"[GraphManager] Failed to find Node with ID {nodeId}");
+            return;
+        }
 
-        loadObj.GetComponent<NetworkObject>().Spawn();
-        loadObj.GetComponent<NetworkObject>().TrySetParent(nodeObj);
+        // 2. Instantiate the Load prefab
+        // Position and rotation don't matter yet because we will reset them after parenting
+        GameObject loadObj = Instantiate(loadPrefab, Vector3.zero, Quaternion.identity);
+        NetworkObject loadNetObj = loadObj.GetComponent<NetworkObject>();
 
-        load.directionNet.Value = direction;
-        load.magnitudeNet.Value = magnitude;
+        // 3. Spawn the object on the network
+        loadNetObj.Spawn();
+
+        // 4. Set the Parent to the Node
+        // 'false' means: do NOT keep world position. Snap to the parent's (0,0,0) instead.
+        bool parentSuccess = loadNetObj.TrySetParent(nodeNetObj, false);
+
+        if (parentSuccess)
+        {
+            // 5. Initialize the networked data
+            LoadBehaviour load = loadObj.GetComponent<LoadBehaviour>();
+            load.directionNet.Value = localDirection.normalized;
+            load.magnitudeNet.Value = magnitude;
+
+            // Extra safety: ensure local position is zeroed
+            loadObj.transform.localPosition = Vector3.zero;
+
+            Debug.Log($"[GraphManager] Load successfully attached to Node {nodeId}");
+        }
+        else
+        {
+            Debug.LogError($"[GraphManager] Parenting failed for Load on Node {nodeId}");
+            // Optional: Despawn if parenting fails to prevent "ghost" objects at origin
+            loadNetObj.Despawn();
+        }
     }
 
     [ServerRpc(RequireOwnership = false)]
@@ -116,42 +159,63 @@ public class GraphManager : NetworkBehaviour
 
         // 2. Parse Data
         StructureSaveData data = JsonUtility.FromJson<StructureSaveData>(json);
-        Dictionary<int, ulong> fileIdToRuntimeId = new Dictionary<int, ulong>();
+        Dictionary<int, NodeBehaviour> fileIdToNode = new Dictionary<int, NodeBehaviour>();
 
-        // 3. Create Nodes & Map IDs
+        // 3. Create Nodes
         foreach (var nodeData in data.nodes)
         {
-            GameObject nodeObj = Instantiate(nodePrefab, nodeData.GetPosition(), Quaternion.identity);
+            Vector3 localPos = nodeData.GetPosition();
+            Vector3 worldPos = ParentWorld != null
+                ? ParentWorld.TransformPoint(localPos)
+                : localPos;
+
+            GameObject nodeObj = Instantiate(nodePrefab, worldPos, Quaternion.identity);
+            NodeBehaviour nodeBehaviour = nodeObj.GetComponent<NodeBehaviour>();
+
             NetworkObject netObj = nodeObj.GetComponent<NetworkObject>();
             netObj.Spawn();
 
-            // Apply properties
-            NodeBehaviour nodeBehaviour = nodeObj.GetComponent<NodeBehaviour>();
+            if (ParentWorld != null && ParentWorld.GetComponent<NetworkObject>() != null)
+                netObj.TrySetParent(ParentWorld.GetComponent<NetworkObject>());
+
             if (nodeBehaviour != null)
             {
                 nodeBehaviour.isSupport = nodeData.isSupport;
+                fileIdToNode[nodeData.id] = nodeBehaviour;
             }
-
-            fileIdToRuntimeId[nodeData.id] = netObj.NetworkObjectId;
         }
 
         // 4. Create Edges
         foreach (var edgeData in data.edges)
         {
-            if (fileIdToRuntimeId.TryGetValue(edgeData.nodeAId, out ulong idA) &&
-                fileIdToRuntimeId.TryGetValue(edgeData.nodeBId, out ulong idB))
+            if (fileIdToNode.TryGetValue(edgeData.nodeAId, out NodeBehaviour nodeA) &&
+                fileIdToNode.TryGetValue(edgeData.nodeBId, out NodeBehaviour nodeB))
             {
-                CreateEdgeServerRpc(idA, idB);
+                GameObject edgeObj = Instantiate(edgePrefab, Vector3.zero, Quaternion.identity);
+                EdgeBehaviour edge = edgeObj.GetComponent<EdgeBehaviour>();
+
+                edge.nodeAId.Value = nodeA.NetworkObjectId;
+                edge.nodeBId.Value = nodeB.NetworkObjectId;
+
+                edgeObj.GetComponent<NetworkObject>().Spawn();
+                edgeObj.GetComponent<NetworkObject>().TrySetParent(ParentWorld.GetComponent<NetworkObject>());
             }
         }
 
         // 5. Create Loads
         foreach (var loadData in data.loads)
         {
-            if (fileIdToRuntimeId.TryGetValue(loadData.nodeId, out ulong nodeId))
+            if (fileIdToNode.TryGetValue(loadData.nodeId, out NodeBehaviour targetNode))
             {
                 Vector3 dir = new Vector3(loadData.dirX, loadData.dirY, loadData.dirZ);
-                CreateLoadServerRpc(nodeId, dir, loadData.magnitude);
+                GameObject loadObj = Instantiate(loadPrefab, targetNode.transform.position, Quaternion.identity);
+
+                loadObj.GetComponent<NetworkObject>().Spawn();
+                loadObj.GetComponent<NetworkObject>().TrySetParent(targetNode.NetworkObject);
+
+                LoadBehaviour load = loadObj.GetComponent<LoadBehaviour>();
+                load.directionNet.Value = dir;
+                load.magnitudeNet.Value = loadData.magnitude;
             }
         }
 

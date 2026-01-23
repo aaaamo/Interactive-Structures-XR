@@ -1,114 +1,3 @@
-//using Meta.XR;
-//using Meta.XR.MRUtilityKit;
-//using UnityEngine;
-
-//public class RaycastSurfaceFinder : MonoBehaviour
-//{
-//    [Header("Assignments")]
-//    public Transform rightControllerAnchor;
-//    public GameObject surfaceAnchor;
-//    public EnvironmentRaycastManager raycastManager;
-//    public GridPointRenderer gridPointRenderer;
-
-//    [Header("Debug Info")]
-//    public Vector3 originAnchor;
-//    public Vector3 directionAnchor;
-
-//    private bool originSet = false;
-//    private bool directionSet = false;
-
-//    // Internal references to the actual spawned objects
-//    private GameObject originVisual;
-//    private GameObject directionVisual;
-
-//    public void SetAnchor()
-//    {
-//        if (rightControllerAnchor == null || raycastManager == null)
-//        {
-//            Debug.LogWarning("RayCaster: Missing controller anchor or raycast manager.");
-//            return;
-//        }
-
-//        var ray = new Ray(rightControllerAnchor.position, rightControllerAnchor.forward);
-
-//        // Raycast against the environment (Depth/Scene)
-//        if (raycastManager.Raycast(ray, out var hit))
-//        {
-//            // STATE 1: Start new cycle (First click OR Resetting after a finished pair)
-//            if (originSet == false || directionSet == true)
-//            {
-//                originAnchor = hit.point;
-//                directionAnchor = Vector3.zero; // Clear old data
-
-//                originSet = true;
-//                directionSet = false;
-
-//                // Visuals: Show Origin, Hide Direction
-//                UpdateMarker(ref originVisual, originAnchor, true);
-//                UpdateMarker(ref directionVisual, Vector3.zero, false);
-
-//                Debug.Log("RayCaster: Origin set. Waiting for direction...");
-//            }
-//            // STATE 2: Finishing the pair (Second click)
-//            else
-//            {
-//                directionAnchor = hit.point;
-//                directionSet = true;
-
-//                // Visuals: Show Direction (Origin stays visible)
-//                UpdateMarker(ref directionVisual, directionAnchor, true);
-
-//                SetGrid();
-//                Debug.Log("RayCaster: Direction set. Grid updated.");
-//            }
-//        }
-//        else
-//        {
-//            Debug.LogWarning("RayCaster: No surface hit detected.");
-//        }
-//    }
-
-//    private void SetGrid()
-//    {
-//        if (gridPointRenderer != null && originSet && directionSet)
-//        {
-//            gridPointRenderer.origin = originAnchor;
-
-//            // Calculate direction and project to XZ plane (flatten Y)
-//            Vector3 direction = directionAnchor - originAnchor;
-//            Vector3 projected = new Vector3(direction.x, 0, direction.z).normalized;
-
-//            gridPointRenderer.xVec = projected;
-//            gridPointRenderer.RefreshGrid();
-//        }
-//    }
-
-//    // Helper: Instantiates prefab if needed, moves it, and toggles visibility
-//    private void UpdateMarker(ref GameObject markerInstance, Vector3 position, bool isVisible)
-//    {
-//        if (surfaceAnchor == null) return;
-
-//        // 1. Create it if it doesn't exist yet
-//        if (markerInstance == null)
-//        {
-//            markerInstance = Instantiate(surfaceAnchor);
-//            // Optional: Remove collider if it blocks your raycast
-//            if (markerInstance.GetComponent<Collider>())
-//                Destroy(markerInstance.GetComponent<Collider>());
-//        }
-
-//        // 2. Set Visibility
-//        markerInstance.SetActive(isVisible);
-
-//        // 3. Set Position if visible
-//        if (isVisible)
-//        {
-//            markerInstance.transform.position = position;
-//            markerInstance.transform.rotation = Quaternion.identity;
-//        }
-//    }
-//}
-
 using Meta.XR;
 using Meta.XR.MRUtilityKit;
 using UnityEngine;
@@ -121,6 +10,10 @@ public class RaycastSurfaceFinder : MonoBehaviour
     public GameObject surfaceAnchor;
     public EnvironmentRaycastManager raycastManager;
     public GridPointRenderer gridPointRenderer;
+    public WorldCoordinateManager worldCoordinateManager;
+
+    // Unified access to ParentWorld (for future use)
+    private Transform ParentWorld => worldCoordinateManager?.parentWorld;
 
     [Header("Debug Info")]
     public Vector3 originAnchor;
@@ -134,6 +27,9 @@ public class RaycastSurfaceFinder : MonoBehaviour
     private GameObject directionVisual;
     private GameObject previewVisual;
 
+    // Flag to control preview visibility (set by OVRGraphController based on mode)
+    private bool visualsEnabled = true;
+
     void Update()
     {
         UpdatePreview();
@@ -142,6 +38,14 @@ public class RaycastSurfaceFinder : MonoBehaviour
     private void UpdatePreview()
     {
         if (rightControllerAnchor == null || raycastManager == null) return;
+
+        // Don't update preview if visuals are disabled (not in SetupWorld/Grid mode)
+        if (!visualsEnabled)
+        {
+            if (previewVisual != null)
+                previewVisual.SetActive(false);
+            return;
+        }
 
         var ray = new Ray(rightControllerAnchor.position, rightControllerAnchor.forward);
 
@@ -250,5 +154,21 @@ public class RaycastSurfaceFinder : MonoBehaviour
             markerInstance.transform.position = position;
             markerInstance.transform.rotation = Quaternion.identity;
         }
+    }
+
+    /// <summary>
+    /// Sets visibility of all visual markers (originVisual, directionVisual, previewVisual).
+    /// Called by OVRGraphController to show/hide based on mode.
+    /// </summary>
+    public void SetVisualsActive(bool active)
+    {
+        visualsEnabled = active;
+
+        if (originVisual != null)
+            originVisual.SetActive(active && originSet);
+        if (directionVisual != null)
+            directionVisual.SetActive(active && directionSet);
+        if (previewVisual != null)
+            previewVisual.SetActive(active);
     }
 }

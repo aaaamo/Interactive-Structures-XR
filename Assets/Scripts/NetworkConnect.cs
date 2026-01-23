@@ -160,9 +160,10 @@ public class NetworkConnect : MonoBehaviour
         }
 
         statusText = uiObject.AddComponent<TextMeshPro>();
-        statusText.fontSize = 0.5f;
+        statusText.fontSize = 0.3f;
         statusText.alignment = TextAlignmentOptions.Center;
         statusText.rectTransform.sizeDelta = new Vector2(0.8f, 0.5f);
+        statusText.richText = true;
 
         uiObject.AddComponent<Billboard>();
     }
@@ -189,9 +190,19 @@ public class NetworkConnect : MonoBehaviour
             return;
         }
 
-        if (statusText != null && uiAnchor != null)
+        // Position UI relative to camera (works regardless of tracking origin)
+        if (statusText != null)
         {
-            statusText.transform.position = uiAnchor.position + uiAnchor.up * 0.1f + uiAnchor.forward * 0.1f;
+            Transform camTransform = Camera.main != null ? Camera.main.transform : null;
+            if (uiAnchor != null)
+            {
+                statusText.transform.position = uiAnchor.position + uiAnchor.up * 0.1f + uiAnchor.forward * 0.1f;
+            }
+            else if (camTransform != null)
+            {
+                // Position in front of camera
+                statusText.transform.position = camTransform.position + camTransform.forward * 0.5f + Vector3.up * -0.1f;
+            }
         }
 
         // Host broadcasts its presence
@@ -530,8 +541,8 @@ public class NetworkConnect : MonoBehaviour
             case ConnectionState.SelectingMode:
                 text = "<b>Network Setup</b>\n\n";
                 text += $"My IP: {GetLocalIPAddress()}\n\n";
-                text += "<color=yellow>[Y] Host</color> - Start server\n";
-                text += "<color=cyan>[X] Client</color> - Join server";
+                text += "<color=#FFD700>[Y] Host</color> - Start server\n";
+                text += "<color=#00FFFF>[X] Client</color> - Join server";
                 break;
 
             case ConnectionState.EnteringIP:
@@ -539,7 +550,7 @@ public class NetworkConnect : MonoBehaviour
 
                 if (manualIPMode)
                 {
-                    text += "<color=gray>Manual IP:</color>\n";
+                    text += "<color=#888888>Manual IP:</color>\n";
                     text += FormatIPWithSelection() + "\n\n";
                     text += "Stick: Select/Change\n";
                     text += "<size=80%>[Stick Click] Show discovered</size>\n";
@@ -548,13 +559,13 @@ public class NetworkConnect : MonoBehaviour
                 {
                     if (discoveredHosts.Count > 0)
                     {
-                        text += "<color=green>Discovered Hosts:</color>\n";
+                        text += "<color=#00FF88>Discovered Hosts:</color>\n";
                         lock (discoveredHosts)
                         {
                             for (int i = 0; i < discoveredHosts.Count; i++)
                             {
                                 if (i == selectedHostIndex)
-                                    text += $"<color=yellow>> {discoveredHosts[i]}</color>\n";
+                                    text += $"<color=#FFD700>> {discoveredHosts[i]}</color>\n";
                                 else
                                     text += $"  {discoveredHosts[i]}\n";
                             }
@@ -563,12 +574,12 @@ public class NetworkConnect : MonoBehaviour
                     }
                     else
                     {
-                        text += "<color=gray>Searching for hosts...</color>\n\n";
+                        text += "<color=#888888>Searching for hosts...</color>\n\n";
                     }
                     text += "<size=80%>[Stick Click] Manual IP</size>\n";
                 }
 
-                text += "\n<color=cyan>[X] Connect</color>  <color=yellow>[Y] Back</color>";
+                text += "\n<color=#00FFFF>[X] Connect</color>  <color=#FFD700>[Y] Back</color>";
                 break;
 
             case ConnectionState.Connecting:
@@ -576,29 +587,29 @@ public class NetworkConnect : MonoBehaviour
                 text += $"Target: {GetIPString()}\n";
                 int dots = (int)(Time.time * 2) % 4;
                 text += new string('.', dots) + "\n\n";
-                text += "<color=yellow>[Y] Cancel</color>";
+                text += "<color=#FFD700>[Y] Cancel</color>";
                 break;
 
             case ConnectionState.Connected:
                 if (NetworkManager.Singleton.IsHost)
                 {
-                    text = "<b><color=green>HOST</color></b>\n\n";
+                    text = "<b><color=#00FF88>HOST</color></b>\n\n";
                     text += $"Server IP: {GetLocalIPAddress()}\n";
                     text += $"Clients: {NetworkManager.Singleton.ConnectedClientsIds.Count}\n\n";
                 }
                 else
                 {
-                    text = "<b><color=cyan>CLIENT</color></b>\n\n";
+                    text = "<b><color=#00FFFF>CLIENT</color></b>\n\n";
                     text += $"Connected to: {GetIPString()}\n\n";
                 }
-                text += "<color=yellow>[Y] Disconnect</color>\n";
+                text += "<color=#FFD700>[Y] Disconnect</color>\n";
                 text += "<size=80%>Switch mode to start editing</size>";
                 break;
 
             case ConnectionState.Failed:
-                text = "<b><color=red>Connection Failed</color></b>\n\n";
+                text = "<b><color=#FF6666>Connection Failed</color></b>\n\n";
                 text += $"Could not connect to:\n{GetIPString()}\n\n";
-                text += "<color=yellow>[Y] or [X] to go back</color>";
+                text += "<color=#FFD700>[Y] or [X] to go back</color>";
                 break;
 
             default:
@@ -615,7 +626,7 @@ public class NetworkConnect : MonoBehaviour
         for (int i = 0; i < 4; i++)
         {
             if (i == selectedIPDigit)
-                result += $"<color=yellow><b>[{ipOctets[i]:D3}]</b></color>";
+                result += $"<color=#FFD700><b>[{ipOctets[i]:D3}]</b></color>";
             else
                 result += $"{ipOctets[i]}";
 

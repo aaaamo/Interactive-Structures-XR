@@ -6,7 +6,7 @@ using Unity.Netcode;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { Network, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
+    public enum Mode { Network, SetupWorld, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
     public Mode currentMode = Mode.Network;
     public enum GridAxis { X, Y, Z, Spacing }
     public GridAxis currentGridAxis = GridAxis.X;
@@ -18,6 +18,7 @@ public class OVRGraphController : MonoBehaviour
     public StructuralAnalyzer structuralAnalyzer;
     public GridPointRenderer gridRenderer;
     public RaycastSurfaceFinder surfaceFinder;
+    public WorldCoordinateManager worldCoordinateManager;
 
     [Header("Visual Feedback")]
     public MarkerController markerController;
@@ -68,7 +69,7 @@ public class OVRGraphController : MonoBehaviour
         {
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
         }
-        gridRenderer.ShowGrid();
+        // gridRenderer.ShowGrid();
 
         // Initialize marker controller
         if (markerController == null && markerTransform != null)
@@ -81,6 +82,9 @@ public class OVRGraphController : MonoBehaviour
 
         // Setup ghost edge line renderer
         SetupGhostEdgeLine();
+
+        // Set initial preview visibility based on mode
+        UpdatePreviewVisibility();
     }
 
     void Update()
@@ -251,8 +255,9 @@ public class OVRGraphController : MonoBehaviour
         // Haptic feedback for mode change
         HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
 
-        // Update marker color
+        // Update marker color and visibility
         markerController?.SetModeColor(currentMode);
+        UpdatePreviewVisibility();
 
         // Cleanup temporary objects
         CleanupGhostObjects();
@@ -365,9 +370,18 @@ public class OVRGraphController : MonoBehaviour
 
         switch (currentMode)
         {
+            case Mode.SetupWorld:
+                if (worldCoordinateManager != null)
+                {
+                    worldCoordinateManager.SetAnchor();
+                }
+                break;
             case Mode.AddNode:
                 Debug.Log($"[OVRGraphController] Calling CreateNodeServerRpc - GraphManager IsSpawned: {graphManager.IsSpawned}");
-                graphManager.CreateNodeServerRpc(GetGridPoint(markerTransform.position));
+                // Convert world position to local position (ParentWorld basis) for network sync
+                Vector3 worldPos = GetGridPoint(markerTransform.position);
+                Vector3 localPos = worldCoordinateManager.WorldToLocal(worldPos);
+                graphManager.CreateNodeServerRpc(localPos);
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
                 markerController?.Pulse();
                 // Notify tutorial system of action
@@ -570,6 +584,9 @@ public class OVRGraphController : MonoBehaviour
             if (graphManager.loadPrefab != null)
             {
                 ghostLoad = Instantiate(graphManager.loadPrefab, node.transform.position, Quaternion.identity);
+                // Parent the ghost load to the node so its transform is in the node's local space
+                ghostLoad.transform.SetParent(node.transform);
+
                 var netObj = ghostLoad.GetComponent<NetworkObject>();
                 if (netObj != null) Destroy(netObj);
                 var lb = ghostLoad.GetComponent<LoadBehaviour>();
@@ -581,10 +598,12 @@ public class OVRGraphController : MonoBehaviour
         }
         else
         {
-            Vector3 dir = markerTransform.position - firstLoadNode.transform.position;
-            float mag = dir.magnitude;
+            Vector3 worldDir = markerTransform.position - firstLoadNode.transform.position;
+            float mag = worldDir.magnitude;
+            // Convert to Node-local direction for network sync
+            Vector3 localDir = firstLoadNode.transform.InverseTransformDirection(worldDir.normalized);
 
-            graphManager.CreateLoadServerRpc(firstLoadNode.NetworkObjectId, dir.normalized, mag);
+            graphManager.CreateLoadServerRpc(firstLoadNode.NetworkObjectId, localDir, mag);
 
             HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
             VisualFeedbackManager.Instance?.ClearSelection();
@@ -602,14 +621,17 @@ public class OVRGraphController : MonoBehaviour
     void UpdateTemporaryLoad()
     {
         if (firstLoadNode == null || ghostLoad == null) return;
-        Vector3 dir = markerTransform.position - firstLoadNode.transform.position;
-        float mag = dir.magnitude;
+        Vector3 worldDir = markerTransform.position - firstLoadNode.transform.position;
+        float mag = worldDir.magnitude;
+        // Convert to Node-local direction (consistent with network sync)
+        // Vector3 localDir = firstLoadNode.transform.InverseTransformDirection(worldDir.normalized);
 
         var lb = ghostLoad.GetComponent<LoadBehaviour>();
         if (lb != null)
         {
-            lb.SetDirection(dir.normalized);
-            lb.SetMagnitude(mag);
+            lb.direction = worldDir;
+            lb.magnitude = mag;
+            lb.UpdateArrow();
         }
     }
 
@@ -664,7 +686,8 @@ public class OVRGraphController : MonoBehaviour
         float minDist = 0.03f;
         foreach (var load in loads)
         {
-            if (load == null) continue;
+            if (load == null || load.node == null) continue;
+
             float dist = Vector3.Distance(load.EndPoint(), markerTransform.position);
             if (dist < minDist)
             {
@@ -694,14 +717,16 @@ public class OVRGraphController : MonoBehaviour
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
             Vector3 movedPos = GetGridPoint(markerTransform.position + offset);
+            // Convert to local position for network sync
+            Vector3 localPos = worldCoordinateManager.WorldToLocal(movedPos);
 
             if (NetworkManager.Singleton.IsServer)
             {
-                node.transform.position = movedPos;
+                node.transform.localPosition = localPos;
             }
             else
             {
-                node.MoveServerRpc(movedPos);
+                node.MoveServerRpc(localPos);
             }
             // Edges update automatically in their Update() loop
             yield return null;
@@ -717,16 +742,19 @@ public class OVRGraphController : MonoBehaviour
         {
             Vector3 newPosA = markerTransform.position + offsetA;
             Vector3 newPosB = markerTransform.position + offsetB;
+            // Convert to local positions for network sync
+            Vector3 localPosA = worldCoordinateManager.WorldToLocal(newPosA);
+            Vector3 localPosB = worldCoordinateManager.WorldToLocal(newPosB);
 
             if (NetworkManager.Singleton.IsServer)
             {
-                edge.nodeA.transform.position = newPosA;
-                edge.nodeB.transform.position = newPosB;
+                edge.nodeA.transform.localPosition = localPosA;
+                edge.nodeB.transform.localPosition = localPosB;
             }
             else
             {
-                edge.nodeA.MoveServerRpc(newPosA);
-                edge.nodeB.MoveServerRpc(newPosB);
+                edge.nodeA.MoveServerRpc(localPosA);
+                edge.nodeB.MoveServerRpc(localPosB);
             }
             yield return null;
         }
@@ -735,20 +763,21 @@ public class OVRGraphController : MonoBehaviour
     IEnumerator MoveLoadCoroutine(LoadBehaviour load)
     {
         if (load == null || load.node == null) yield break;
-        Vector3 offset = load.EndPoint() - markerTransform.position;
-        while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
+        Vector3 offset = load.EndPoint() - markerTransform.position; while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
-            Vector3 dir = (markerTransform.position + offset) - load.node.transform.position;
-            float mag = dir.magnitude;
+            Vector3 worldDir = (markerTransform.position + offset) - load.node.transform.position;
+            float mag = worldDir.magnitude;
+            // Convert to Node-local direction for network sync
+            Vector3 localDir = load.node.transform.InverseTransformDirection(worldDir.normalized);
 
             if (NetworkManager.Singleton.IsServer)
             {
-                load.directionNet.Value = dir.normalized;
+                load.directionNet.Value = localDir;
                 load.magnitudeNet.Value = mag;
             }
             else
             {
-                load.UpdateLoadServerRpc(dir.normalized, mag);
+                load.UpdateLoadServerRpc(localDir, mag);
             }
             yield return null;
         }
@@ -777,7 +806,6 @@ public class OVRGraphController : MonoBehaviour
                 }
             }
         }
-        //Vector3 GridSnapPos = GetGridPoint(markerTransform.position);
 
         Dictionary<NodeBehaviour, Vector3> offsets = new Dictionary<NodeBehaviour, Vector3>();
         foreach (var node in connectedNodes)
@@ -787,10 +815,12 @@ public class OVRGraphController : MonoBehaviour
             foreach (var node in connectedNodes)
             {
                 Vector3 newPos = markerTransform.position + offsets[node];
+                // Convert to local position for network sync
+                Vector3 localPos = worldCoordinateManager.WorldToLocal(newPos);
                 if (NetworkManager.Singleton.IsServer)
-                    node.transform.position = newPos;
+                    node.transform.localPosition = localPos;
                 else
-                    node.MoveServerRpc(newPos);
+                    node.MoveServerRpc(localPos);
             }
             yield return null;
         }
@@ -875,9 +905,15 @@ public class OVRGraphController : MonoBehaviour
                 rend.materials = mats;
             }
 
-            // Disable behavior scripts
+            // Disable behavior scripts and hide text label
             var nodeBehaviour = ghostNode.GetComponent<NodeBehaviour>();
-            if (nodeBehaviour != null) nodeBehaviour.enabled = false;
+            if (nodeBehaviour != null)
+            {
+                nodeBehaviour.enabled = false;
+                // Hide text label on ghost node
+                if (nodeBehaviour.nodeLabel != null)
+                    nodeBehaviour.nodeLabel.gameObject.SetActive(false);
+            }
         }
         else if (ghostNode != null)
         {
@@ -1109,5 +1145,21 @@ public class OVRGraphController : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         modeDisplayUI?.ClearMessage(currentMode);
+    }
+
+    /// <summary>
+    /// Updates raycast preview marker visibility based on current mode.
+    /// Raycast hit markers are only shown in SetupWorld or Grid modes.
+    /// Note: markerTransform (controller marker) is always visible.
+    /// </summary>
+    void UpdatePreviewVisibility()
+    {
+        // Control WorldCoordinateManager visuals (originVisual, directionVisual, previewVisual)
+        if (worldCoordinateManager != null)
+            worldCoordinateManager.SetVisualsActive(currentMode == Mode.SetupWorld);
+
+        // Control RaycastSurfaceFinder visuals (originVisual, directionVisual, previewVisual)
+        if (surfaceFinder != null)
+            surfaceFinder.SetVisualsActive(currentMode == Mode.Grid);
     }
 }

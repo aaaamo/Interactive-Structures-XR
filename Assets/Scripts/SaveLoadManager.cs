@@ -13,6 +13,7 @@ public class SaveLoadManager : MonoBehaviour
 {
     [Header("References")]
     public GraphManager graphManager;
+    public WorldCoordinateManager worldCoordinateManager;
 
     [Header("Settings")]
     public string saveDirectory = "StructureSaves";
@@ -150,11 +151,14 @@ public class SaveLoadManager : MonoBehaviour
             // Parse JSON
             StructureSaveData saveData = JsonUtility.FromJson<StructureSaveData>(json);
 
-            // Clear existing structure - Handled by Server in LoadStructureData
-            // ClearCurrentStructure(); 
+            // Calculate bounding box and reposition to be in front of camera
+            RepositionStructureForViewing(saveData);
+
+            // Convert back to JSON with adjusted positions
+            string adjustedJson = JsonUtility.ToJson(saveData, true);
 
             // Load structure into scene
-            LoadStructureData(json);
+            LoadStructureData(adjustedJson);
 
             Debug.Log($"[LOAD] Structure loaded successfully");
             Debug.Log($"[LOAD] Nodes: {saveData.nodes.Count}, Edges: {saveData.edges.Count}, Loads: {saveData.loads.Count}");
@@ -183,15 +187,23 @@ public class SaveLoadManager : MonoBehaviour
         NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
         Dictionary<NodeBehaviour, int> nodeToId = new Dictionary<NodeBehaviour, int>();
 
+        // Get parentWorld reference for local coordinate conversion
+        Transform parentWorld = worldCoordinateManager?.parentWorld;
+
         // Save nodes
         for (int i = 0; i < allNodes.Length; i++)
         {
             NodeBehaviour node = allNodes[i];
             nodeToId[node] = i;
 
+            // Convert to local position if parentWorld is set
+            Vector3 savePosition = parentWorld != null
+                ? parentWorld.InverseTransformPoint(node.transform.position)
+                : node.transform.position;
+
             StructureSaveData.NodeData nodeData = new StructureSaveData.NodeData(
                 i,
-                node.transform.position,
+                savePosition,
                 node.isSupport
             );
 
@@ -241,6 +253,65 @@ public class SaveLoadManager : MonoBehaviour
         }
 
         return saveData;
+    }
+
+    /// <summary>
+    /// Reposition structure to be nicely visible in front of camera
+    /// </summary>
+    private void RepositionStructureForViewing(StructureSaveData saveData)
+    {
+        if (saveData.nodes == null || saveData.nodes.Count == 0) return;
+
+        // Calculate bounding box
+        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+
+        foreach (var node in saveData.nodes)
+        {
+            Vector3 pos = node.GetPosition();
+            min = Vector3.Min(min, pos);
+            max = Vector3.Max(max, pos);
+        }
+
+        Vector3 center = (min + max) / 2f;
+        Vector3 size = max - min;
+        float diagonal = size.magnitude;
+
+        // Calculate viewing distance based on bounding box size
+        float viewDistance = Mathf.Max(diagonal * 0.8f, 0.5f); // At least 0.5m away
+
+        // Get camera position in ParentWorld local space
+        Transform camTransform = Camera.main != null ? Camera.main.transform : null;
+        Vector3 targetPosition;
+
+        if (camTransform != null && worldCoordinateManager != null && worldCoordinateManager.parentWorld != null)
+        {
+            // Convert camera world position to ParentWorld local space
+            Vector3 camLocalPos = worldCoordinateManager.WorldToLocal(camTransform.position);
+            Vector3 camLocalForward = worldCoordinateManager.parentWorld.InverseTransformDirection(camTransform.forward);
+
+            // Target position: in front of camera, at eye level (slightly below center of view)
+            targetPosition = camLocalPos + camLocalForward * viewDistance;
+            targetPosition.y = camLocalPos.y - 0.1f; // Slightly below eye level
+        }
+        else
+        {
+            // Fallback: place at origin
+            targetPosition = Vector3.zero;
+        }
+
+        // Calculate offset to move structure center to target position
+        Vector3 offset = targetPosition - center;
+
+        // Apply offset to all node positions
+        foreach (var node in saveData.nodes)
+        {
+            node.x += offset.x;
+            node.y += offset.y;
+            node.z += offset.z;
+        }
+
+        Debug.Log($"[LOAD] Repositioned structure - BBox size: {size}, diagonal: {diagonal:F2}m, viewDistance: {viewDistance:F2}m");
     }
 
     /// <summary>

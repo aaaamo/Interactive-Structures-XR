@@ -12,8 +12,8 @@ GameObject:
   - component: {fileID: 8505590959459736435}
   - component: {fileID: 5341965378553091885}
   - component: {fileID: 5640858052128887994}
-  - component: {fileID: -338933154555909983}
   - component: {fileID: 5291991501008772968}
+  - component: {fileID: -338933154555909983}
   m_Layer: 0
   m_Name: EdgePrefab
   m_TagString: Untagged
@@ -115,20 +115,6 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &-338933154555909983
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1224438521136580412}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0ef29c13e353d5940982e3716e7ec980, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EdgeBehaviour
-  nodeA: {fileID: 0}
-  nodeB: {fileID: 0}
 --- !u!114 &5291991501008772968
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -141,7 +127,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 0
+  GlobalObjectIdHash: 1255682095
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -154,3 +140,22 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &-338933154555909983
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1224438521136580412}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ef29c13e353d5940982e3716e7ec980, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EdgeBehaviour
+  ShowTopMostFoldoutHeaderGroup: 1
+  nodeA: {fileID: 0}
+  nodeB: {fileID: 0}
+  nodeAId:
+    m_InternalValue: 0
+  nodeBId:
+    m_InternalValue: 0

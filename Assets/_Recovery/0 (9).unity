@@ -940,7 +940,6 @@ MonoBehaviour:
   rightControllerAnchor: {fileID: 377170631}
   raycastManager: {fileID: 395412565}
   anchorPrefab: {fileID: 7349069827726099138, guid: 9e4ab917d2a078241966bce2a221753d, type: 3}
-  coordinatePrefab: {fileID: 9196643386428410915, guid: d001d52f785b6174499ac6a165014226, type: 3}
   worldOrigin: {x: 0, y: 0, z: 0}
   worldDirection: {x: 0, y: 0, z: 0}
   parentWorld: {fileID: 726456084}
@@ -971,7 +970,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3499711021
+  GlobalObjectIdHash: 3729571223
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1028,7 +1027,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2751800223
+  GlobalObjectIdHash: 2570182939
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -2497,7 +2496,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 973175329
+  GlobalObjectIdHash: 918144767
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1

@@ -76,9 +76,10 @@ namespace InteractiveStructures.Controllers
 
             foreach (var load in loads)
             {
-                if (load == null) continue;
+                if (load == null || load.node == null) continue;
 
                 float dist = Vector3.Distance(load.EndPoint(), position);
+
                 if (dist < minDist)
                 {
                     closest = load;

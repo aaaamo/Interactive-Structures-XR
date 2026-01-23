@@ -1,5 +1,6 @@
 using UnityEngine;
 using Unity.Netcode;
+using System.Collections;
 
 public class EdgeBehaviour : NetworkBehaviour
 {
@@ -13,18 +14,53 @@ public class EdgeBehaviour : NetworkBehaviour
 
     private GameObject displacedEdge;
 
+    // For delayed visual show (prevents "fly-in" effect on clients)
+    private Renderer[] allRenderers;
+
     void Awake()
     {
         edgeTransform = transform;
         if (edgeTransform == null)
             Debug.LogError("Edge transform missing!");
+
+        // Cache all renderers for visibility control
+        allRenderers = GetComponentsInChildren<Renderer>(true);
+
+        // Note: Don't hide visuals in Awake - let non-networked instances (local preview edges) show immediately
+        // Networked instances will hide in OnNetworkSpawn and show after nodes connect
     }
 
     public override void OnNetworkSpawn()
     {
+        // Hide visuals immediately for networked objects (prevents "fly-in" effect)
+        SetRenderersVisible(false);
+
         nodeAId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
         nodeBId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
         ConnectNodes();
+
+        // If nodes not found yet (late join), retry until connected
+        if (nodeA == null || nodeB == null)
+        {
+            StartCoroutine(RetryConnectNodes());
+        }
+    }
+
+    private System.Collections.IEnumerator RetryConnectNodes()
+    {
+        int maxRetries = 50; // ~5 seconds max
+        int retries = 0;
+        while ((nodeA == null || nodeB == null) && retries < maxRetries)
+        {
+            yield return new WaitForSeconds(0.1f);
+            ConnectNodes();
+            retries++;
+        }
+
+        if (nodeA == null || nodeB == null)
+        {
+            Debug.LogWarning($"[EdgeBehaviour] Failed to connect nodes after {maxRetries} retries. nodeAId={nodeAId.Value}, nodeBId={nodeBId.Value}");
+        }
     }
 
     public override void OnNetworkDespawn()
@@ -52,6 +88,24 @@ public class EdgeBehaviour : NetworkBehaviour
         }
 
         UpdateEdgePosition();
+
+        // Show visuals when both nodes are connected
+        // Nodes now have correct position immediately via initialLocalPosition
+        if (nodeA != null && nodeB != null)
+        {
+            SetRenderersVisible(true);
+        }
+    }
+
+    private void SetRenderersVisible(bool visible)
+    {
+        if (allRenderers == null) return;
+
+        foreach (var renderer in allRenderers)
+        {
+            if (renderer != null)
+                renderer.enabled = visible;
+        }
     }
 
     void Update()
@@ -83,7 +137,7 @@ public class EdgeBehaviour : NetworkBehaviour
         PositionEdge(edgeTransform, start, end);
     }
 
-    public void ShowDisplacement(float scale, Material displacedMaterial)
+    public void ShowDisplacement(float scale, Material displacedMaterial, float thickness = -1f)
     {
         if (nodeA == null || nodeB == null)
         {
@@ -102,9 +156,6 @@ public class EdgeBehaviour : NetworkBehaviour
             displacedEdge.transform.SetParent(transform.parent);
             displacedEdge.name = gameObject.name + "_displaced";
 
-            // Match the original edge's scale (at least X and Z for thickness)
-            displacedEdge.transform.localScale = edgeTransform.localScale;
-
             // Apply displaced material
             Renderer renderer = displacedEdge.GetComponent<Renderer>();
             if (renderer != null)
@@ -116,6 +167,15 @@ public class EdgeBehaviour : NetworkBehaviour
             Collider col = displacedEdge.GetComponent<Collider>();
             if (col != null) Destroy(col);
         }
+
+        // Set thickness: use provided value or match original edge
+        Vector3 baseScale = edgeTransform.localScale;
+        if (thickness > 0)
+        {
+            baseScale.x = thickness;
+            baseScale.z = thickness;
+        }
+        displacedEdge.transform.localScale = baseScale;
 
         PositionEdge(displacedEdge.transform, startDisplaced, endDisplaced);
         displacedEdge.SetActive(true);

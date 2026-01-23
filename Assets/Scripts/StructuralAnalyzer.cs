@@ -12,9 +12,20 @@ public class StructuralAnalyzer : MonoBehaviour
     public LoadingIndicator loadingIndicator;
 
     [Header("Material Properties")]
-    public float youngModulus = 200e9f; // Steel: 200 GPa
-    public float crossSectionalArea = 0.01f; // 10 cm�
-    public float exaggerationFactor = 100000000.0f; // For displacement visualization
+    public float youngModulus; // Steel: 200 GPa
+    public float crossSectionalArea; // 10 cm²
+    public float exaggerationFactor; // For displacement visualization
+
+    [Header("Visualization Colors")]
+    public Color tensionColor;
+    public Color compressionColor;
+    public Color neutralColor;
+    public float baseColorLerp;
+
+    [Header("Force-Based Edge Scaling")]
+    public bool scaleEdgesByForce;
+    public float minEdgeThickness;       // Minimum edge thickness (never thinner than this)
+    public float forceThicknessScale;     // Scale factor: thickness = min + normalized * scale
 
     public Material displacedMaterialPrefab;
     private List<SubgraphAnalysisResult> resultNow;
@@ -155,15 +166,26 @@ public class StructuralAnalyzer : MonoBehaviour
             node.HideDisplacement();
         }
 
-        // Hide displacements on edges and reset color
+        // Hide displacements on edges, reset color and scale
         EdgeBehaviour[] allEdges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
         foreach (var edge in allEdges)
         {
             edge.HideDisplacement();
+
+            // Reset color
             Renderer rend = edge.GetComponent<Renderer>();
             if (rend != null)
             {
                 rend.material.color = Color.white;
+            }
+
+            // Reset scale to default thickness
+            if (scaleEdgesByForce)
+            {
+                Vector3 scale = edge.transform.localScale;
+                scale.x = minEdgeThickness;
+                scale.z = minEdgeThickness;
+                edge.transform.localScale = scale;
             }
         }
     }
@@ -286,7 +308,10 @@ public class StructuralAnalyzer : MonoBehaviour
                 foreach (var load in data.nodes[i].loads)
                 {
                     if (load != null)
-                        totalLoad += load.GetForceVector();
+                    {
+                        Vector3 worldDirection = load.node != null ? load.node.transform.TransformDirection(load.direction) : load.direction;
+                        totalLoad += worldDirection * load.magnitude;
+                    }
                 }
             }
             if (totalLoad.magnitude > 0.001f)
@@ -369,31 +394,102 @@ public class StructuralAnalyzer : MonoBehaviour
             }
             if (subMaxForce < 0.001f) subMaxForce = 1f;
             VisualizeForces(subResult.result, subResult.data, subMaxForce);
-            VisualizeDisplacements(subResult.result, subResult.data);
+            VisualizeDisplacements(subResult.result, subResult.data, subMaxForce);
         }
     }
+
+    // void VisualizeForces(TrussAnalysisResult result, StructureData data, float maxForce)
+    // {
+    //     if (result.memberForces == null) return;
+
+    //     for (int i = 0; i < data.edges.Count && i < result.memberForces.Length; i++)
+    //     {
+    //         EdgeBehaviour edge = data.edges[i];
+    //         float force = result.memberForces[i];
+    //         float normalized = Mathf.Abs(force) / maxForce;
+
+    //         //// Apply color based on tension/compression
+    //         //Renderer rend = edge.GetComponent<Renderer>();
+    //         //if (rend != null)
+    //         //{
+    //         //    if (force > 0)
+    //         //    {
+    //         //        rend.material.color = Color.Lerp(neutralColor, tensionColor, normalized);
+    //         //    }
+    //         //    else
+    //         //        rend.material.color = Color.Lerp(neutralColor, compressionColor, normalized);
+    //         //}
+    //         Renderer rend = edge.GetComponent<Renderer>();
+    //         if (rend != null)
+    //         {
+    //             // 1. 상태에 따른 기본 색상 계산
+    //             Color targetColor = force > 0
+    //                 ? Color.Lerp(neutralColor, tensionColor, normalized)
+    //                 : Color.Lerp(neutralColor, compressionColor, normalized);
+
+    //             // 2. 일반 Albedo 컬러 적용
+    //             rend.material.color = targetColor;
+
+    //             // 3. Emission 컬러 적용 (강도 조절 없이 색상만 일치시킴)
+    //             rend.material.EnableKeyword("_EMISSION");
+    //             // Standard/URP Lit 셰이더의 에미션 속성명인 "_EmissionColor"를 사용합니다.
+    //             rend.material.SetColor("_EmissionColor", targetColor);
+    //         }
+
+    //         // Scale edge thickness based on force (XZ scale, Y is length)
+    //         if (scaleEdgesByForce)
+    //         {
+    //             float thickness = minEdgeThickness + normalized * forceThicknessScale;
+    //             Vector3 scale = edge.transform.localScale;
+    //             scale.x = thickness;
+    //             scale.z = thickness;
+    //             edge.transform.localScale = scale;
+    //         }
+    //     }
+    // }
 
     void VisualizeForces(TrussAnalysisResult result, StructureData data, float maxForce)
     {
         if (result.memberForces == null) return;
 
+        int emissionPropertyId = Shader.PropertyToID("_EmissionColor");
+
         for (int i = 0; i < data.edges.Count && i < result.memberForces.Length; i++)
         {
             EdgeBehaviour edge = data.edges[i];
             float force = result.memberForces[i];
+
+            float k = 100f;
+            float linearNormalized = Mathf.Abs(force) / maxForce;
+            // float logNormalized = Mathf.Log(1 + k * linearNormalized) / Mathf.Log(1 + k);
+
+            Color baseTension = Color.Lerp(neutralColor, tensionColor, baseColorLerp);
+            Color baseCompression = Color.Lerp(neutralColor, compressionColor, baseColorLerp);
+
             Renderer rend = edge.GetComponent<Renderer>();
             if (rend != null)
             {
-                float normalized = Mathf.Abs(force) / maxForce;
-                if (force > 0)
-                    rend.material.color = Color.Lerp(Color.white, Color.red, normalized);
-                else
-                    rend.material.color = Color.Lerp(Color.white, Color.blue, normalized);
+                Color targetColor = force > 0
+                    ? Color.Lerp(baseTension, tensionColor, linearNormalized)
+                    : Color.Lerp(baseCompression, compressionColor, linearNormalized);
+
+                rend.material.color = targetColor;
+                rend.material.EnableKeyword("_EMISSION");
+                rend.material.SetColor(emissionPropertyId, targetColor);
+            }
+
+            if (scaleEdgesByForce)
+            {
+                float thickness = minEdgeThickness + linearNormalized * forceThicknessScale;
+                Vector3 scale = edge.transform.localScale;
+                scale.x = thickness;
+                scale.z = thickness;
+                edge.transform.localScale = scale;
             }
         }
     }
 
-    void VisualizeDisplacements(TrussAnalysisResult result, StructureData data)
+    void VisualizeDisplacements(TrussAnalysisResult result, StructureData data, float maxForce)
     {
         if (result.displacements == null) return;
 
@@ -419,10 +515,20 @@ public class StructuralAnalyzer : MonoBehaviour
             node.ShowDisplacement(scale, displacedMaterialPrefab);
         }
 
-        // Show displaced edges
-        foreach (EdgeBehaviour edge in data.edges)
+        // Show displaced edges with force-based thickness
+        for (int i = 0; i < data.edges.Count; i++)
         {
-            edge.ShowDisplacement(scale, displacedMaterialPrefab);
+            EdgeBehaviour edge = data.edges[i];
+            float thickness = -1f; // Use default
+
+            if (scaleEdgesByForce && result.memberForces != null && i < result.memberForces.Length)
+            {
+                float force = result.memberForces[i];
+                float normalized = Mathf.Abs(force) / maxForce;
+                thickness = minEdgeThickness + normalized * forceThicknessScale;
+            }
+
+            edge.ShowDisplacement(scale, displacedMaterialPrefab, thickness);
         }
     }
 

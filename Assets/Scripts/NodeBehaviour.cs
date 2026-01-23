@@ -1,7 +1,9 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections;
 using TMPro;
 using Unity.Netcode;
+using Unity.Netcode.Components;
 
 public class NodeBehaviour : NetworkBehaviour
 {
@@ -28,6 +30,12 @@ public class NodeBehaviour : NetworkBehaviour
     private Vector3 lastPosition;
     private int lastLoadCount;
 
+    // For delayed visual show (prevents "fly-in" effect on clients)
+    private Renderer[] allRenderers;
+    private bool visualsReady = false;
+
+    public bool IsVisualsReady() => visualsReady;
+
     public override void OnNetworkSpawn()
     {
         isSupportNet.OnValueChanged += (oldVal, newVal) =>
@@ -35,7 +43,10 @@ public class NodeBehaviour : NetworkBehaviour
             ApplyVisualState();
             UpdateTextContent();
         };
+
+        // Now show visuals - position is already correct
         ApplyVisualState();
+        UpdateTextContent();
     }
 
     void Awake()
@@ -49,6 +60,9 @@ public class NodeBehaviour : NetworkBehaviour
         // Initialize state trackers
         lastPosition = transform.position;
         lastLoadCount = (loads != null) ? loads.Count : 0;
+
+        // Cache all renderers for visibility control
+        allRenderers = GetComponentsInChildren<Renderer>(true);
 
         ApplyVisualState();
         UpdateTextContent();
@@ -103,9 +117,9 @@ public class NodeBehaviour : NetworkBehaviour
     }
 
     [ServerRpc(RequireOwnership = false)]
-    public void MoveServerRpc(Vector3 newPosition)
+    public void MoveServerRpc(Vector3 newLocalPosition)
     {
-        transform.position = newPosition;
+        transform.localPosition = newLocalPosition;
     }
 
     private void ApplyVisualState()

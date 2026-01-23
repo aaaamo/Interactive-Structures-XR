@@ -23,6 +23,9 @@ public class GridPointRenderer : MonoBehaviour
     [Range(0f, 1f)]
     public float maxOpacity = 0.8f; // Opacity inside radius
 
+    public WorldCoordinateManager worldCoordinateManager;
+    private Transform ParentWorld => worldCoordinateManager?.parentWorld;
+
     private GameObject gridParent;
     public bool isActive;
     public bool isGridSet = false; // True only after user explicitly sets the grid anchor
@@ -40,15 +43,21 @@ public class GridPointRenderer : MonoBehaviour
 
     /// <summary>
     /// Call this after changing origin or xVec to update the visuals immediately.
+    /// Only refreshes if grid is set.
     /// </summary>
     public void RefreshGrid()
     {
+        if (!isGridSet) return;
+
         DestroyGrid(); // Clear old points
         ShowGrid();    // Build new points with current settings
     }
 
     public void ToggleGrid()
     {
+        // Only toggle if grid is set
+        if (!isGridSet) return;
+
         if (gridParent != null && gridParent.activeSelf)
         {
             HideGrid();
@@ -61,6 +70,13 @@ public class GridPointRenderer : MonoBehaviour
 
     public void ShowGrid()
     {
+        // Only show grid if it has been explicitly set by user
+        if (!isGridSet)
+        {
+            Debug.Log("[GridPointRenderer] Grid not set yet. Cannot show grid.");
+            return;
+        }
+
         // If grid exists, just enable it. Use RefreshGrid() to force rebuild.
         if (gridParent != null)
         {
@@ -69,7 +85,12 @@ public class GridPointRenderer : MonoBehaviour
         }
 
         gridParent = new GameObject("3D_Grid_Points");
-        gridParent.transform.SetParent(transform);
+
+        // Parent to ParentWorld if set, otherwise to this transform
+        if (ParentWorld != null)
+            gridParent.transform.SetParent(ParentWorld);
+        else
+            gridParent.transform.SetParent(transform);
 
         // Prepare material - use the proximity shader
         if (pointMaterial == null)

@@ -12,6 +12,8 @@ public class ModeDisplayUI : MonoBehaviour
     public TextMeshPro iconText; // Using TextMeshPro with unicode symbols as icons
 
     [Header("Mode Colors")]
+    public Color networkColor = new Color(0.5f, 0.5f, 0.5f);
+    public Color setupWorldColor = new Color(1f, 0.9f, 0.3f);
     public Color addNodeColor = new Color(0.2f, 1f, 0.2f);
     public Color addEdgeColor = new Color(0.2f, 0.6f, 1f);
     public Color addLoadColor = new Color(1f, 0.6f, 0.2f);
@@ -24,6 +26,8 @@ public class ModeDisplayUI : MonoBehaviour
     public Color importColor = new Color(0.5f, 0.9f, 1f);
 
     private static readonly string[] modeIcons = {
+        "\u26A1",  // Network - Lightning bolt
+        "\u2316",  // SetupWorld - Crosshair/position
         "\u25CF",  // AddNode - Filled circle
         "\u2015",  // AddEdge - Horizontal line
         "\u2193",  // AddLoad - Down arrow
@@ -37,6 +41,8 @@ public class ModeDisplayUI : MonoBehaviour
     };
 
     private static readonly string[] modeHints = {
+        "Connect to network to start",
+        "Set origin, then direction point",
         "Point and TRIGGER to place node",
         "Select first node, then second node",
         "Select node, then point direction and TRIGGER",
@@ -120,6 +126,8 @@ public class ModeDisplayUI : MonoBehaviour
     {
         switch (mode)
         {
+            case OVRGraphController.Mode.Network: return networkColor;
+            case OVRGraphController.Mode.SetupWorld: return setupWorldColor;
             case OVRGraphController.Mode.AddNode: return addNodeColor;
             case OVRGraphController.Mode.AddEdge: return addEdgeColor;
             case OVRGraphController.Mode.AddLoad: return addLoadColor;

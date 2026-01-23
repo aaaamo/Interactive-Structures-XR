@@ -370,10 +370,10 @@ MonoBehaviour:
   tensionColor: {r: 1, g: 0, b: 0, a: 1}
   compressionColor: {r: 0, g: 0, b: 1, a: 1}
   neutralColor: {r: 1, g: 1, b: 1, a: 1}
-  baseColorLerp: 0.6
+  baseColorLerp: 0.2
   scaleEdgesByForce: 1
   minEdgeThickness: 0.005
-  forceThicknessScale: 0.02
+  forceThicknessScale: 0.05
   displacedMaterialPrefab: {fileID: 2100000, guid: 3b6152fb5ba05474385f38f894082a0b, type: 2}
 --- !u!4 &335742039
 Transform:
@@ -940,7 +940,6 @@ MonoBehaviour:
   rightControllerAnchor: {fileID: 377170631}
   raycastManager: {fileID: 395412565}
   anchorPrefab: {fileID: 7349069827726099138, guid: 9e4ab917d2a078241966bce2a221753d, type: 3}
-  coordinatePrefab: {fileID: 9196643386428410915, guid: d001d52f785b6174499ac6a165014226, type: 3}
   worldOrigin: {x: 0, y: 0, z: 0}
   worldDirection: {x: 0, y: 0, z: 0}
   parentWorld: {fileID: 726456084}
@@ -971,7 +970,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3499711021
+  GlobalObjectIdHash: 1732550214
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1028,7 +1027,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2751800223
+  GlobalObjectIdHash: 247513461
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -2497,7 +2496,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 973175329
+  GlobalObjectIdHash: 2425485696
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1

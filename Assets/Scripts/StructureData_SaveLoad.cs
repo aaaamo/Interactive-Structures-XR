@@ -16,6 +16,9 @@ public class StructureSaveData
     public List<EdgeData> edges = new List<EdgeData>();
     public List<LoadData> loads = new List<LoadData>();
 
+    // Optional: ParentWorld transform data (for future use)
+    public ParentWorldData parentWorldData;
+
     [System.Serializable]
     public class NodeData
     {
@@ -65,6 +68,36 @@ public class StructureSaveData
             this.dirY = direction.y;
             this.dirZ = direction.z;
             this.magnitude = magnitude;
+        }
+
+        public Vector3 GetDirection()
+        {
+            return new Vector3(dirX, dirY, dirZ);
+        }
+    }
+
+    /// <summary>
+    /// ParentWorld transform data for coordinate system reference
+    /// </summary>
+    [System.Serializable]
+    public class ParentWorldData
+    {
+        public float originX, originY, originZ;
+        public float dirX, dirY, dirZ;  // X-axis direction
+
+        public ParentWorldData(Vector3 origin, Vector3 direction)
+        {
+            originX = origin.x;
+            originY = origin.y;
+            originZ = origin.z;
+            dirX = direction.x;
+            dirY = direction.y;
+            dirZ = direction.z;
+        }
+
+        public Vector3 GetOrigin()
+        {
+            return new Vector3(originX, originY, originZ);
         }
 
         public Vector3 GetDirection()

@@ -231,8 +231,8 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 63729469247001120}
-  - component: {fileID: 1955416843046151667}
   - component: {fileID: 5136763204696326627}
+  - component: {fileID: 1955416843046151667}
   - component: {fileID: -1487489808038491450}
   m_Layer: 0
   m_Name: NodePrefab
@@ -259,25 +259,6 @@ Transform:
   - {fileID: 2140369480557203169}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1955416843046151667
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6975473497868493926}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f908cfcf0b9df304480659ed71e08dc8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NodeBehaviour
-  connectedEdges: []
-  loads: []
-  isSupport: 0
-  supportVisual: {fileID: 55701479305820715}
-  freeVisual: {fileID: 6487638125445644787}
-  displacementVector: {x: 0, y: 0, z: 0}
-  nodeLabel: {fileID: 4598606663897664888}
 --- !u!114 &5136763204696326627
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -303,6 +284,27 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &1955416843046151667
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6975473497868493926}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f908cfcf0b9df304480659ed71e08dc8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NodeBehaviour
+  ShowTopMostFoldoutHeaderGroup: 1
+  connectedEdges: []
+  loads: []
+  isSupportNet:
+    m_InternalValue: 0
+  supportVisual: {fileID: 55701479305820715}
+  freeVisual: {fileID: 6487638125445644787}
+  displacementVector: {x: 0, y: 0, z: 0}
+  nodeLabel: {fileID: 4598606663897664888}
 --- !u!114 &-1487489808038491450
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -345,7 +347,7 @@ MonoBehaviour:
   UseQuaternionSynchronization: 0
   UseQuaternionCompression: 0
   UseHalfFloatPrecision: 0
-  InLocalSpace: 0
+  InLocalSpace: 1
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0

@@ -6,6 +6,8 @@ using UnityEngine;
 public class MarkerController : MonoBehaviour
 {
     [Header("Mode Colors")]
+    public Color networkColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);    // Gray
+    public Color setupWorldColor = new Color(1f, 0.9f, 0.3f, 0.8f);   // Yellow-Gold
     public Color addNodeColor = new Color(0.2f, 1f, 0.2f, 0.8f);      // Green
     public Color addEdgeColor = new Color(0.2f, 0.6f, 1f, 0.8f);      // Blue
     public Color addLoadColor = new Color(1f, 0.6f, 0.2f, 0.8f);      // Orange
@@ -89,6 +91,10 @@ public class MarkerController : MonoBehaviour
     {
         switch (mode)
         {
+            case OVRGraphController.Mode.Network:
+                return networkColor;
+            case OVRGraphController.Mode.SetupWorld:
+                return setupWorldColor;
             case OVRGraphController.Mode.AddNode:
                 return addNodeColor;
             case OVRGraphController.Mode.AddEdge:
