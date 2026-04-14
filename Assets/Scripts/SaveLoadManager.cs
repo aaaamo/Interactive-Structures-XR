@@ -334,67 +334,40 @@ public class SaveLoadManager : MonoBehaviour
     /// </summary>
     private void ClearCurrentStructure()
     {
-        // In networked mode, we should ask server to despawn everything
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer)
+        bool isServer = NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer;
+        bool isClient = NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient && !NetworkManager.Singleton.IsServer;
+
+        if (isServer)
         {
-            var nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
-            foreach (var node in nodes) node.GetComponent<NetworkObject>().Despawn();
+            // Loads first (children of nodes), then edges, then nodes
+            // to avoid accessing destroyed GameObjects when parent despawn cascades.
+            var loads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
+            foreach (var l in loads) { var no = l?.GetComponent<NetworkObject>(); if (no != null && no.IsSpawned) { no.Despawn(); } }
 
             var edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
-            foreach (var edge in edges) edge.GetComponent<NetworkObject>().Despawn();
+            foreach (var e in edges) { var no = e?.GetComponent<NetworkObject>(); if (no != null && no.IsSpawned) { no.Despawn(); } }
 
-            // Loads are children of nodes, usually despawned with nodes, but if separate:
-            var loads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
-            foreach (var load in loads) load.GetComponent<NetworkObject>().Despawn();
-
+            var nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
+            foreach (var n in nodes) { var no = n?.GetComponent<NetworkObject>(); if (no != null && no.IsSpawned) { no.Despawn(); } }
             return;
         }
 
-        // Delete all nodes (this will cascade to edges and loads)
-        NodeBehaviour[] allNodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
-        foreach (var node in allNodes)
+        if (isClient)
         {
-            if (node != null)
-            {
-                // Delete loads
-                if (node.loads != null)
-                {
-                    foreach (var load in node.loads)
-                    {
-                        if (load != null)
-                            Destroy(load.gameObject);
-                    }
-                }
-
-                // Delete edges
-                if (node.connectedEdges != null)
-                {
-                    foreach (var edge in node.connectedEdges)
-                    {
-                        if (edge != null)
-                            Destroy(edge.gameObject);
-                    }
-                }
-
-                Destroy(node.gameObject);
-            }
+            // Client: must go through server — use GraphManager ServerRpc
+            // We can't Despawn from client side; ask GraphManager to clear everything
+            var gm = FindObjectOfType<GraphManager>();
+            if (gm != null) { gm.ClearAllServerRpc(); }
+            return;
         }
 
-        // Clean up any orphaned edges
-        EdgeBehaviour[] allEdges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
-        foreach (var edge in allEdges)
-        {
-            if (edge != null)
-                Destroy(edge.gameObject);
-        }
-
-        // Clean up any orphaned loads
-        LoadBehaviour[] allLoads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
-        foreach (var load in allLoads)
-        {
-            if (load != null)
-                Destroy(load.gameObject);
-        }
+        // Offline (no NetworkManager): direct destroy
+        foreach (var node in FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None))
+            if (node != null) { Destroy(node.gameObject); }
+        foreach (var edge in FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None))
+            if (edge != null) { Destroy(edge.gameObject); }
+        foreach (var load in FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None))
+            if (load != null) { Destroy(load.gameObject); }
     }
 
     /// <summary>

@@ -174,7 +174,7 @@ public static class MatrixSolver
             // Check for singular matrix
             if (maxVal < 1e-10f)
             {
-                Debug.LogError($"Matrix is singular or near-singular at column {col}");
+                Debug.LogWarning($"[FEM] Matrix is singular or near-singular at column {col} — structure may be unstable or under-constrained");
                 return null;
             }
 

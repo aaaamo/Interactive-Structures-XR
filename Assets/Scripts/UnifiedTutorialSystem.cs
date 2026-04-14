@@ -238,107 +238,39 @@ public class UnifiedTutorialSystem : MonoBehaviour
     {
         switch (mode)
         {
-            case OVRGraphController.Mode.AddNode:
-                return @"<b><color=#88FF88>ADD NODE</color></b>
+            case OVRGraphController.Mode.Setup:
+                return @"<b><color=#FFEE44>SETUP</color></b>
 
-<color=#FFFF88>TRIGGER</color> to place nodes
-Nodes snap to grid automatically
+Right stick ↕ = Switch tool
+<color=#FFFF88>TRIGGER</color> = Run selected tool
 
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.AddEdge:
-                return @"<b><color=#88DDFF>ADD EDGE</color></b>
-
-1. <color=#FFFF88>TRIGGER</color> on first node
-2. <color=#FFFF88>TRIGGER</color> on second node
-
-Green line = valid
-Red line = duplicate
+Tools: World · Grid · Network · Import
+Left stick press = Toggle grid snap
 
 <size=80%><i>Press X to hide</i></size>";
 
-            case OVRGraphController.Mode.AddLoad:
-                return @"<b><color=#FFAA88>ADD LOAD</color></b>
+            case OVRGraphController.Mode.Build:
+                return @"<b><color=#88FF88>BUILD</color></b>
 
-1. <color=#FFFF88>TRIGGER</color> to select node
-2. Point direction
-3. <color=#FFFF88>TRIGGER</color> to confirm
+Right stick ↕ = Switch tool
+<color=#FFFF88>TRIGGER</color> = Place / connect
+<color=#FFFF88>GRIP</color>    = Drag node / edge / structure
+<color=#FFFF88>B</color>       = Cancel or clear selection
 
-Arrow length = force
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.ToggleSupport:
-                return @"<b><color=#FFFF88>TOGGLE SUPPORT</color></b>
-
-<color=#FFFF88>TRIGGER</color> on node to fix/unfix
-
-Fixed nodes = anchors
-Need supports for stability
+Tools: Node · Edge · Load · Support · Delete · Select
 
 <size=80%><i>Press X to hide</i></size>";
 
-            case OVRGraphController.Mode.Move:
-                return @"<b><color=#AA88FF>MOVE</color></b>
+            case OVRGraphController.Mode.Optimize:
+                return @"<b><color=#FFD700>OPTIMIZE</color></b>
 
-Point at element
-Hold <color=#FFFF88>TRIGGER</color> to drag
-Release to drop
+<color=#FFFF88>GRIP</color>         = Drag nodes (follow arrows!)
+Left stick ↕    = Browse history
+<color=#FFFF88>TRIGGER</color>      = Rollback to cursor position
+<color=#FFFF88>B</color>           = Jump to latest snapshot
+Right stick ↕   = Adjust displacement scale
 
-Works on nodes, edges, loads
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.Delete:
-                return @"<b><color=#FF8888>DELETE</color></b>
-
-<color=#FFFF88>TRIGGER</color> to delete element
-
-⚠️ Red highlight = warning
-⚠️ No undo!
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.Grab:
-                return @"<b><color=#88DDFF>GRAB</color></b>
-
-Point at any part
-Cyan = whole structure
-Hold <color=#FFFF88>TRIGGER</color> to move all
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.Analyze:
-                return @"<b><color=#FFFFFF>ANALYZE</color></b>
-
-<color=#FFFF88>TRIGGER</color> = Run analysis
-<color=#FFFF88>GRIP</color> = Cancel
-
-<color=#FF8888>Red</color> = Tension
-<color=#8888FF>Blue</color> = Compression
-
-Left thumbstick = scale
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.Grid:
-                return @"<b><color=#AAAAAA>GRID</color></b>
-
-<color=#FFFF88>TRIGGER</color> = Set anchors
-Left stick ↕ = Adjust values
-Left stick ↔ = Change axis
-Left stick press = Toggle visibility
-
-<size=80%><i>Press X to hide</i></size>";
-
-            case OVRGraphController.Mode.Import:
-                return @"<b><color=#88DDFF>IMPORT</color></b>
-
-<color=#FFFF88>TRIGGER</color> = Open file browser
-Select saved structure to load
-
-Clears current structure
-Loads saved nodes, edges, loads
+Arrows show direction to improve compliance
 
 <size=80%><i>Press X to hide</i></size>";
 

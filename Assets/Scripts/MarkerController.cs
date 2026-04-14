@@ -6,18 +6,9 @@ using UnityEngine;
 public class MarkerController : MonoBehaviour
 {
     [Header("Mode Colors")]
-    public Color networkColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);    // Gray
-    public Color setupWorldColor = new Color(1f, 0.9f, 0.3f, 0.8f);   // Yellow-Gold
-    public Color addNodeColor = new Color(0.2f, 1f, 0.2f, 0.8f);      // Green
-    public Color addEdgeColor = new Color(0.2f, 0.6f, 1f, 0.8f);      // Blue
-    public Color addLoadColor = new Color(1f, 0.6f, 0.2f, 0.8f);      // Orange
-    public Color toggleSupportColor = new Color(0.8f, 0.8f, 0.2f, 0.8f); // Yellow
-    public Color moveColor = new Color(0.6f, 0.3f, 1f, 0.8f);         // Purple
-    public Color deleteColor = new Color(1f, 0.2f, 0.2f, 0.8f);       // Red
-    public Color grabColor = new Color(0.3f, 0.9f, 1f, 0.8f);         // Cyan
-    public Color analyzeColor = new Color(1f, 1f, 1f, 0.8f);          // White
-    public Color gridColor = new Color(0.7f, 0.7f, 0.7f, 0.5f);       // Gray
-    public Color importColor = new Color(0.5f, 0.9f, 1f, 0.8f);       // Light Cyan
+    public Color setupColor    = new Color(1f,  0.9f, 0.3f,  0.8f);  // Yellow-Gold
+    public Color buildColor    = new Color(0.2f, 1f,  0.2f,  0.8f);  // Green
+    public Color optimizeColor = new Color(1f,  0.85f, 0f,   0.8f);  // Gold
 
     [Header("Invalid Action Color")]
     public Color invalidColor = new Color(1f, 0f, 0f, 0.5f);          // Transparent red
@@ -91,32 +82,10 @@ public class MarkerController : MonoBehaviour
     {
         switch (mode)
         {
-            case OVRGraphController.Mode.Network:
-                return networkColor;
-            case OVRGraphController.Mode.SetupWorld:
-                return setupWorldColor;
-            case OVRGraphController.Mode.AddNode:
-                return addNodeColor;
-            case OVRGraphController.Mode.AddEdge:
-                return addEdgeColor;
-            case OVRGraphController.Mode.AddLoad:
-                return addLoadColor;
-            case OVRGraphController.Mode.ToggleSupport:
-                return toggleSupportColor;
-            case OVRGraphController.Mode.Move:
-                return moveColor;
-            case OVRGraphController.Mode.Delete:
-                return deleteColor;
-            case OVRGraphController.Mode.Grab:
-                return grabColor;
-            case OVRGraphController.Mode.Analyze:
-                return analyzeColor;
-            case OVRGraphController.Mode.Grid:
-                return gridColor;
-            case OVRGraphController.Mode.Import:
-                return importColor;
-            default:
-                return Color.white;
+            case OVRGraphController.Mode.Setup:    return setupColor;
+            case OVRGraphController.Mode.Build:    return buildColor;
+            case OVRGraphController.Mode.Optimize: return optimizeColor;
+            default:                               return Color.white;
         }
     }
 

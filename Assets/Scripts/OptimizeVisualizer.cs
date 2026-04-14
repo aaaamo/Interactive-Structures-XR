@@ -20,6 +20,7 @@ public class OptimizeVisualizer : MonoBehaviour
     public StructuralAnalyzer structuralAnalyzer;
     public GraphManager graphManager;
     public ModeDisplayUI modeDisplayUI;
+    public OptimizeSession optimizeSession;
 
     [Header("Ghost Settings")]
     public Material ghostMaterial;  // Same material slot as displacedMaterialPrefab
@@ -40,6 +41,9 @@ public class OptimizeVisualizer : MonoBehaviour
 
     private readonly List<GameObject> _ghostNodes = new List<GameObject>();
     private readonly List<GameObject> _ghostEdges = new List<GameObject>();
+
+    // Rollback preview objects (shown while browsing history in Rollback tool)
+    private readonly List<GameObject> _rollbackPreviewNodes = new List<GameObject>();
 
     private bool _hintsActive;
 
@@ -64,23 +68,87 @@ public class OptimizeVisualizer : MonoBehaviour
     {
         _hintsActive = false;
         DestroyGhost();
+        ClearRollbackPreview();
         // Arrows remain visible in all modes
     }
 
-    /// <summary>Call after any structural modification.</summary>
-    public void OnStructureChanged()
+    // ------------------------------------------------------------------ //
+    // Rollback preview — ghost nodes at cursor snapshot positions
+    // ------------------------------------------------------------------ //
+
+    /// <summary>
+    /// Show semi-transparent preview of node positions at the given snapshot.
+    /// Call when the rollback cursor moves. Pass null to clear preview.
+    /// </summary>
+    public void ShowRollbackPreview(StructureSnapshot snap)
     {
-        RefreshHints();
+        ClearRollbackPreview();
+        if (snap == null) { return; }
+
+        GameObject nodePrefab = graphManager != null ? graphManager.nodePrefab : null;
+        if (nodePrefab == null) { return; }
+
+        for (int i = 0; i < snap.nodeNetworkIds.Length; i++)
+        {
+            ulong id = snap.nodeNetworkIds[i];
+            if (Unity.Netcode.NetworkManager.Singleton == null ||
+                !Unity.Netcode.NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(id, out _))
+            { continue; }
+
+            Vector3 pos = snap.nodePositions[i];
+            GameObject preview = Instantiate(nodePrefab, pos, Quaternion.identity);
+
+            // Apply a distinct orange-yellow tint to distinguish from the optimization ghost
+            foreach (var r in preview.GetComponentsInChildren<Renderer>())
+            {
+                r.material = new Material(r.sharedMaterial);
+                r.material.color = new Color(1f, 0.7f, 0f, 0.85f); // orange
+            }
+
+            // Disable all scripts — preview is visual only
+            foreach (var mb in preview.GetComponentsInChildren<MonoBehaviour>())
+                mb.enabled = false;
+            // Disable colliders — rollback preview must not be interactable
+            foreach (var col in preview.GetComponentsInChildren<Collider>())
+                col.enabled = false;
+
+            _rollbackPreviewNodes.Add(preview);
+        }
+    }
+
+    /// <summary>Destroy all rollback preview ghost objects.</summary>
+    public void ClearRollbackPreview()
+    {
+        foreach (var g in _rollbackPreviewNodes)
+        {
+            if (g != null) { Destroy(g); }
+        }
+        _rollbackPreviewNodes.Clear();
+    }
+
+    /// <summary>
+    /// Call after any structural modification.
+    /// Set fromDrag=true when called at drag-end so the compliance is snapshotted
+    /// and feedback is shown in Optimize mode.
+    /// </summary>
+    public void OnStructureChanged(bool fromDrag = false)
+    {
+        RefreshHints(fromDrag);
     }
 
 // ------------------------------------------------------------------ //
     // Core refresh
     // ------------------------------------------------------------------ //
 
-    private void RefreshHints()
+    private void RefreshHints(bool fromDrag = false)
     {
-        NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.InstanceID);
-        EdgeBehaviour[] edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.InstanceID);
+        // Filter out ghost objects: ghost nodes/edges have all MonoBehaviours disabled.
+        // Including them in the FEM solve adds unconstrained DOFs → singular matrix → DestroyGhost
+        // → next call succeeds → ghost recreated → cycle = visible flicker every drag.
+        NodeBehaviour[] nodes = System.Array.FindAll(
+            FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.InstanceID), n => n.enabled);
+        EdgeBehaviour[] edges = System.Array.FindAll(
+            FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.InstanceID), e => e.enabled);
 
         if (nodes.Length == 0) { return; }
 
@@ -115,6 +183,25 @@ public class OptimizeVisualizer : MonoBehaviour
             }
         }
         modeDisplayUI?.SetCompliance(compliance, true);
+
+        // Apply force colors to edges (blue=tension, red=compression) — no displacement ghosts, no thickness change
+        structuralAnalyzer?.ApplyForceColors(result, data);
+
+        // Snapshot: take on drag-end OR on first entry (so graph always has ≥1 point)
+        if (_hintsActive && optimizeSession != null)
+        {
+            bool isInitial = optimizeSession.History.Count == 0;
+            if (fromDrag || isInitial)
+            {
+                bool isNewBest = optimizeSession.IsNewBest(compliance);
+                optimizeSession.TakeSnapshot(nodes, compliance);
+                modeDisplayUI?.SetCompliance(compliance, true);
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, false);
+                // Only show flash feedback on actual drag-ends (not the silent initial snapshot)
+                if (fromDrag && !isInitial)
+                    modeDisplayUI?.ShowOptimizeFeedback(isNewBest);
+            }
+        }
 
         // Gradient is used only to identify free (non-support, non-load) nodes
         Dictionary<NodeBehaviour, Vector3> gradient = TrussOptimizer.ComputeGradient(data, result, E, A);
@@ -279,9 +366,10 @@ public class OptimizeVisualizer : MonoBehaviour
             ApplyGhostMaterial(gn);
             // Disable all scripts so ghost doesn't register as a live node
             foreach (var mb in gn.GetComponentsInChildren<MonoBehaviour>())
-            {
                 mb.enabled = false;
-            }
+            // Disable colliders so ghost can't be grabbed/selected/deleted
+            foreach (var col in gn.GetComponentsInChildren<Collider>())
+                col.enabled = false;
             _ghostNodes.Add(gn);
         }
 
@@ -312,9 +400,9 @@ public class OptimizeVisualizer : MonoBehaviour
             ge.transform.localScale = s;
             ApplyGhostMaterial(ge);
             foreach (var mb in ge.GetComponentsInChildren<MonoBehaviour>())
-            {
                 mb.enabled = false;
-            }
+            foreach (var col in ge.GetComponentsInChildren<Collider>())
+                col.enabled = false;
             _ghostEdges.Add(ge);
         }
     }
@@ -325,6 +413,10 @@ public class OptimizeVisualizer : MonoBehaviour
         foreach (var r in go.GetComponentsInChildren<Renderer>())
         {
             r.material = ghostMaterial;
+            // Ensure opacity is high enough to be clearly visible in VR
+            Color c = r.material.color;
+            c.a = 0.82f;
+            r.material.color = c;
         }
     }
 
@@ -351,11 +443,14 @@ public class OptimizeVisualizer : MonoBehaviour
         if (graphManager == null || graphManager.loadPrefab == null) { return null; }
 
         GameObject go = Instantiate(graphManager.loadPrefab, node.transform.position, Quaternion.identity);
-        go.transform.SetParent(node.transform);
 
-        // Destroy NetworkObject so it doesn't register on the network
-        var netObj = go.GetComponent<NetworkObject>();
-        if (netObj != null) { Destroy(netObj); }
+        // Remove ALL NetworkObject components in the hierarchy BEFORE SetParent.
+        foreach (var no in go.GetComponentsInChildren<NetworkObject>(true))
+        {
+            DestroyImmediate(no);
+        }
+
+        go.transform.SetParent(node.transform);
 
         var lb = go.GetComponent<LoadBehaviour>();
         if (lb != null)
@@ -372,7 +467,7 @@ public class OptimizeVisualizer : MonoBehaviour
             foreach (var r in go.GetComponentsInChildren<Renderer>())
             {
                 r.material = ghostMaterial;
-                r.material.color = new Color(0f, 1f, 0.8f, 0.6f); // teal, semi-transparent
+                r.material.color = new Color(0f, 1f, 0.8f, 0.85f); // teal
             }
         }
 
@@ -386,5 +481,6 @@ public class OptimizeVisualizer : MonoBehaviour
     private void OnDestroy()
     {
         HideHints();
+        ClearRollbackPreview();
     }
 }

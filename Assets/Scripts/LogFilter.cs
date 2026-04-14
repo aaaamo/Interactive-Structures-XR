@@ -38,7 +38,9 @@ public class LogFilter : MonoBehaviour
         private static readonly string[] suppressedMessages = new string[]
         {
             "render graph API, the output Render Texture must have a depth buffer",
-            "Depth Stencil Format property of the texture must be set"
+            "Depth Stencil Format property of the texture must be set",
+            // FEM singular matrix is handled gracefully — suppress the warning spam
+            "Matrix is singular or near-singular"
         };
 
         public FilteredLogHandler(ILogHandler defaultHandler)

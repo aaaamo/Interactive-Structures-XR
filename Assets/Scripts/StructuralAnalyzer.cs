@@ -144,8 +144,7 @@ public class StructuralAnalyzer : MonoBehaviour
 
         resultNow = results;
 
-        // Display and visualize all results
-        DisplayAllAnalysisResults(results);
+        // Visualize forces — no text panel shown
         VisualizeAllForces(results);
 
         // Hide loading indicator and provide success feedback
@@ -155,7 +154,7 @@ public class StructuralAnalyzer : MonoBehaviour
 
     public void RefreshDisplacements()
     {
-        if (resultNow.Count > 0)
+        if (resultNow != null && resultNow.Count > 0)
         {
             VisualizeAllForces(resultNow);
         }
@@ -191,6 +190,47 @@ public class StructuralAnalyzer : MonoBehaviour
                 scale.z = minEdgeThickness;
                 edge.transform.localScale = scale;
             }
+        }
+    }
+
+    /// <summary>
+    /// Apply blue/red force colors to edges based on a pre-computed result.
+    /// Does NOT show displacement ghosts and does NOT change edge thickness.
+    /// Used by OptimizeVisualizer to show live force feedback during optimize mode.
+    /// </summary>
+    public void ApplyForceColors(TrussAnalysisResult result, StructureData data)
+    {
+        if (result?.memberForces == null || data?.edges == null) { return; }
+
+        float maxForce = 0f;
+        foreach (float f in result.memberForces) { maxForce = Mathf.Max(maxForce, Mathf.Abs(f)); }
+        if (maxForce < 0.001f) { maxForce = 1f; }
+
+        int emissionId = Shader.PropertyToID("_EmissionColor");
+
+        for (int i = 0; i < data.edges.Count && i < result.memberForces.Length; i++)
+        {
+            EdgeBehaviour edge = data.edges[i];
+            if (edge == null) { continue; }
+
+            float force = result.memberForces[i];
+            float t = Mathf.Abs(force) / maxForce;
+
+            Color baseCol = force > 0
+                ? Color.Lerp(neutralColor, tensionColor, baseColorLerp)
+                : Color.Lerp(neutralColor, compressionColor, baseColorLerp);
+            Color target = force > 0
+                ? Color.Lerp(baseCol, tensionColor, t)
+                : Color.Lerp(baseCol, compressionColor, t);
+
+            Renderer rend = edge.GetComponent<Renderer>();
+            if (rend != null)
+            {
+                rend.material.color = target;
+                rend.material.EnableKeyword("_EMISSION");
+                rend.material.SetColor(emissionId, target);
+            }
+            // Intentionally no edge thickness change and no displacement visualization
         }
     }
 

@@ -17,6 +17,10 @@ public class NetworkConnect : MonoBehaviour
     public TextMeshPro statusText;
     public Transform uiAnchor;
 
+    [Header("Auto Start")]
+    [Tooltip("Automatically start as host when the app launches — skips the manual network setup step.")]
+    public bool autoStartAsHost = true;
+
     [Header("Network Settings")]
     public string defaultHostIP = "192.168.1.100";
     public int discoveryPort = 47777;
@@ -95,6 +99,12 @@ public class NetworkConnect : MonoBehaviour
         // Register network callbacks
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+
+        // Auto-start as host so the app is immediately usable without manual setup
+        if (autoStartAsHost)
+        {
+            StartAsHost();
+        }
     }
 
     void OnDestroy()
@@ -173,7 +183,8 @@ public class NetworkConnect : MonoBehaviour
         if (NetworkManager.Singleton == null) return;
 
         bool isNetworkMode = graphController != null &&
-                            graphController.currentMode == OVRGraphController.Mode.Network;
+                            graphController.currentMode == OVRGraphController.Mode.Setup &&
+                            graphController.currentSetupTool == OVRGraphController.SetupTool.Network;
 
         if (uiObject != null)
         {
@@ -474,6 +485,11 @@ public class NetworkConnect : MonoBehaviour
             Debug.Log($"[NetworkConnect] Host transport - Port: {transport.ConnectionData.Port}, ServerListenAddress: {transport.ConnectionData.ServerListenAddress}");
         }
 
+        // Destroy any leftover spawned NetworkObjects from a previous session.
+        // If they remain in the scene, NetworkManager throws a GlobalObjectIdHash collision.
+        DestroyLeftoverNetworkObjects();
+        graphController?.OnStructureReset();
+
         RegisterPrefabs();
         bool started = NetworkManager.Singleton.StartHost();
         Debug.Log($"[NetworkConnect] StartHost returned: {started}");
@@ -511,6 +527,8 @@ public class NetworkConnect : MonoBehaviour
         // Update ipOctets for display
         ParseIPString(targetIP);
 
+        DestroyLeftoverNetworkObjects();
+        graphController?.OnStructureReset();
         RegisterPrefabs();
 
         Debug.Log($"[NetworkConnect] Starting client connection to: {targetIP}");
@@ -656,6 +674,37 @@ public class NetworkConnect : MonoBehaviour
     private void RegisterPrefabs()
     {
         Debug.Log("[NetworkConnect] Prefabs should already be registered via DefaultNetworkPrefabs asset");
+    }
+
+    /// <summary>
+    /// Destroys all dynamically spawned NetworkObject clones (Node, Edge, Load) left over
+    /// from a previous session. Without this, restarting as host throws a
+    /// GlobalObjectIdHash collision in NetworkSceneManager.
+    /// </summary>
+    private void DestroyLeftoverNetworkObjects()
+    {
+        var leftover = FindObjectsByType<NetworkObject>(FindObjectsSortMode.None);
+        int count = 0;
+        foreach (var netObj in leftover)
+        {
+            if (netObj == null) { continue; }
+            // Only destroy prefab clones — scene-placed objects have "(Clone)" in their name
+            // or are NodeBehaviour / EdgeBehaviour / LoadBehaviour components.
+            bool isStructureObject = netObj.GetComponent<NodeBehaviour>() != null
+                                  || netObj.GetComponent<EdgeBehaviour>()  != null
+                                  || netObj.GetComponent<LoadBehaviour>()  != null;
+            if (isStructureObject)
+            {
+                // DestroyImmediate so objects are gone before NetworkManager.StartHost()
+                // scans the scene — prevents GlobalObjectIdHash collisions
+                DestroyImmediate(netObj.gameObject);
+                count++;
+            }
+        }
+        if (count > 0)
+        {
+            Debug.Log($"[NetworkConnect] Cleaned up {count} leftover NetworkObject(s) before restarting.");
+        }
     }
 
     public static string GetLocalIPAddress()

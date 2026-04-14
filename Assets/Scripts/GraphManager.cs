@@ -134,6 +134,23 @@ public class GraphManager : NetworkBehaviour
         }
     }
 
+    /// <summary>Any client can request a full scene clear via the server.</summary>
+    [ServerRpc(RequireOwnership = false)]
+    public void ClearAllServerRpc()
+    {
+        // Order matters: loads are children of nodes.
+        // Despawn children (loads) before parents (nodes) to avoid
+        // accessing destroyed GameObjects when parent Despawn cascades.
+        var loads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
+        foreach (var l in loads) { if (l != null && l.IsSpawned) { l.GetComponent<NetworkObject>().Despawn(); } }
+
+        var edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
+        foreach (var e in edges) { if (e != null && e.IsSpawned) { e.GetComponent<NetworkObject>().Despawn(); } }
+
+        var nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
+        foreach (var n in nodes) { if (n != null && n.IsSpawned) { n.GetComponent<NetworkObject>().Despawn(); } }
+    }
+
     [ServerRpc(RequireOwnership = false)]
     public void LoadStructureServerRpc(string json)
     {

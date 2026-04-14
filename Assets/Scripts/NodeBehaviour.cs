@@ -36,17 +36,32 @@ public class NodeBehaviour : NetworkBehaviour
 
     public bool IsVisualsReady() => visualsReady;
 
+    // Keep a named reference so we can unsubscribe cleanly in OnNetworkDespawn
+    private NetworkVariable<bool>.OnValueChangedDelegate _onSupportChanged;
+
     public override void OnNetworkSpawn()
     {
-        isSupportNet.OnValueChanged += (oldVal, newVal) =>
+        _onSupportChanged = (oldVal, newVal) =>
         {
             ApplyVisualState();
             UpdateTextContent();
         };
+        isSupportNet.OnValueChanged += _onSupportChanged;
 
-        // Now show visuals - position is already correct
         ApplyVisualState();
         UpdateTextContent();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (_onSupportChanged != null)
+        {
+            isSupportNet.OnValueChanged -= _onSupportChanged;
+            _onSupportChanged = null;
+        }
+        // Clear lists so stale references don't linger
+        connectedEdges?.Clear();
+        loads?.Clear();
     }
 
     void Awake()
@@ -72,32 +87,13 @@ public class NodeBehaviour : NetworkBehaviour
 
     void Update()
     {
-        if (nodeLabel != null && mainCameraTransform != null)
-        {
-            Vector3 cameraEuler = mainCameraTransform.rotation.eulerAngles;
-            nodeLabel.transform.rotation = Quaternion.Euler(0, cameraEuler.y, 0);
-        }
-
-        bool hasMoved = Vector3.Distance(transform.position, lastPosition) > 0.001f;
-        bool loadChanged = (loads != null && loads.Count != lastLoadCount);
-
-        if (hasMoved || loadChanged)
-        {
-            UpdateTextContent();
-
-            lastPosition = transform.position;
-            lastLoadCount = (loads != null) ? loads.Count : 0;
-        }
+        // Node label is hidden; no per-frame update needed.
     }
 
     public void UpdateTextContent()
     {
-        if (nodeLabel == null) return;
-
-        string posText = $"Pos: {transform.position.x:F1}, {transform.position.y:F1}, {transform.position.z:F1}";
-        string loadText = (loads != null && loads.Count > 0) ? $"\nLoads: {loads.Count}" : "";
-
-        nodeLabel.text = $"{posText}{loadText}";
+        // Per-node text labels have been removed for a cleaner visual.
+        if (nodeLabel != null) { nodeLabel.gameObject.SetActive(false); }
     }
 
     public void ToggleSupport()

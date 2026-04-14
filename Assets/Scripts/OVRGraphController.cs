@@ -1,32 +1,55 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using Unity.Netcode;
-using System;
 
-public class OVRGraphController : MonoBehaviour
+/// <summary>
+/// Core partial: enums, inspector fields, lifecycle (Start / Update),
+/// mode selection, tool cycling, mode text, and public API.
+/// </summary>
+public partial class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { Network, SetupWorld, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import, Optimize }
-    public Mode currentMode = Mode.Network;
-    public enum GridAxis { X, Y, Z, Spacing }
-    public GridAxis currentGridAxis = GridAxis.X;
+    // ------------------------------------------------------------------ //
+    // Enums
+    // ------------------------------------------------------------------ //
+
+    public enum Mode         { Setup, Build, Optimize }
+    public enum BuildTool    { Node, Edge, Load, Support, Delete, Select, Analyze }
+    public enum SetupTool    { World, Grid, Network, Import }
+    public enum GridAxis     { X, Y, Z, Spacing }
+    public enum OptimizeTool { Move, Rollback }
+
+    // ------------------------------------------------------------------ //
+    // Public state
+    // ------------------------------------------------------------------ //
+
+    public Mode         currentMode         = Mode.Build;
+    public BuildTool    currentBuildTool    = BuildTool.Node;
+    public SetupTool    currentSetupTool    = SetupTool.World;
+    public GridAxis     currentGridAxis     = GridAxis.X;
+    public OptimizeTool currentOptimizeTool = OptimizeTool.Move;
+
+    // ------------------------------------------------------------------ //
+    // Inspector references
+    // ------------------------------------------------------------------ //
 
     [Header("References")]
-    public GraphManager graphManager;
-    public Transform markerTransform;
-    public TextMeshPro modeText;
-    public StructuralAnalyzer structuralAnalyzer;
-    public OptimizeVisualizer optimizeVisualizer;
-    public GridPointRenderer gridRenderer;
-    public RaycastSurfaceFinder surfaceFinder;
+    public GraphManager           graphManager;
+    public Transform              markerTransform;
+    public TextMeshPro            modeText;
+    public StructuralAnalyzer     structuralAnalyzer;
+    public OptimizeVisualizer     optimizeVisualizer;
+    public OptimizeSession        optimizeSession;
+    public GridPointRenderer      gridRenderer;
+    public RaycastSurfaceFinder   surfaceFinder;
     public WorldCoordinateManager worldCoordinateManager;
 
-    [Header("Visual Feedback")]
-    public MarkerController markerController;
-    public GameObject ghostNodePrefab;
-    public Material ghostMaterial;
-    public ModeDisplayUI modeDisplayUI;
+    [Header("UI")]
+    public MarkerController  markerController;
+    public GameObject        ghostNodePrefab;
+    public Material          ghostMaterial;
+    public ModeDisplayUI     modeDisplayUI;
 
     [Header("Tutorial System")]
     public UnifiedTutorialSystem unifiedTutorial;
@@ -34,1188 +57,407 @@ public class OVRGraphController : MonoBehaviour
     [Header("Network")]
     public NetworkConnect networkConnect;
 
+    // ------------------------------------------------------------------ //
+    // Private state
+    // ------------------------------------------------------------------ //
+
+    // Two-step workflow state (Edge / Load)
     private NodeBehaviour firstSelectedNode;
     private EdgeBehaviour tempEdge;
-    private NodeBehaviour firstLoadNode = null;
-    private GameObject ghostLoad = null;
-    private bool triggerHeldLastFrame = false;
-    private float lastThumbTime = 0f;
-    private float thumbCooldown = 0.3f;
+    private NodeBehaviour firstLoadNode;
+    private GameObject    ghostLoad;
+
+    // Multi-select (BuildTool.Select)
+    private readonly HashSet<NodeBehaviour> _selectedNodes = new HashSet<NodeBehaviour>();
+
+    // Inline mode selection state (Y button)
+    private bool _selectingMode  = false;
+    private int  _modeCursor     = 0;
+
+    // Input throttling
+    private bool  triggerHeldLastFrame;
+    private float lastThumbTime;
+    private const float ThumbCooldown = 0.25f;
 
     // Visual feedback tracking
-    private GameObject ghostNode;
-    private LineRenderer ghostEdgeLine;
-    private GameObject hoveredObject;
+    private GameObject             ghostNode;
+    private LineRenderer           ghostEdgeLine;
+    private GameObject             hoveredObject;
     private HashSet<NodeBehaviour> highlightedGrabNodes = new HashSet<NodeBehaviour>();
+
+    // ------------------------------------------------------------------ //
+    // Unity lifecycle
+    // ------------------------------------------------------------------ //
 
     void Start()
     {
         Debug.LogWarning("[OVRGraphController] Start() called");
 
-        // Auto-find GraphManager if not assigned
+        // Always start in Build mode regardless of Inspector value
+        currentMode = Mode.Build;
+
         if (graphManager == null)
         {
             graphManager = FindObjectOfType<GraphManager>();
             if (graphManager == null)
-            {
-                Debug.LogError("[OVRGraphController] GraphManager not found in scene!");
-            }
-            else
-            {
-                Debug.Log("[OVRGraphController] GraphManager auto-assigned");
-            }
+                Debug.LogError("[OVRGraphController] GraphManager not found!");
         }
 
-        UpdateModeText();
-        if (currentMode == Mode.Analyze)
-        {
-            structuralAnalyzer?.resultsDisplay.gameObject.SetActive(true);
-        }
-        else
-        {
-            structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
-        }
-        // gridRenderer.ShowGrid();
-
-        // Initialize marker controller
         if (markerController == null && markerTransform != null)
         {
             markerController = markerTransform.GetComponent<MarkerController>();
             if (markerController == null)
-            {
                 markerController = markerTransform.gameObject.AddComponent<MarkerController>();
-            }
         }
-        markerController?.SetModeColor(currentMode);
 
-        // Setup ghost edge line renderer
         SetupGhostEdgeLine();
-
-        // Set initial preview visibility based on mode
-        UpdatePreviewVisibility();
+        SwitchToMode(currentMode);
     }
 
     void Update()
     {
-        if (graphManager == null || markerTransform == null)
-        {
-            Debug.LogWarning($"[OVRGraphController] Missing reference - graphManager: {graphManager != null}, markerTransform: {markerTransform != null}");
-            return;
-        }
+        // Mode selection (Y button) — always runs, even before scene is fully wired
+        HandleModeSelectInput();
 
-        // In Network mode, only handle network UI
-        if (currentMode == Mode.Network)
-        {
-            HandleModeSwitch();
-            UpdateModeText();
-            return;
-        }
+        // Block all other input while selecting mode
+        if (_selectingMode) { UpdateModeText(); return; }
 
-        // Check network connection status
+        if (graphManager == null || markerTransform == null) { return; }
+
+        HandleToolSwitch();
+        HandleGripDrag();
+
         bool isConnected = NetworkManager.Singleton != null &&
-                          (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
+                           (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
 
-        HandleModeSwitch();
-
-        // Analyze/Optimize modes work without network connection (local computation)
-        if (currentMode == Mode.Analyze || currentMode == Mode.Optimize)
+        switch (currentMode)
         {
-            HandleTriggerInput();
-            UpdateModeText();
-            return;
+            case Mode.Build:
+                if (isConnected) { HandleBuildTrigger(); }
+                UpdateBuildVisualFeedback();
+                break;
+            case Mode.Setup:
+                HandleSetupTrigger(isConnected);
+                UpdateSetupVisualFeedback();
+                break;
+            case Mode.Optimize:
+                HandleOptimizeTrigger();
+                break;
         }
 
-        // All other modes require network connection
-        if (!isConnected)
-        {
-            UpdateModeText();
-            return;
-        }
-
-        HandleTriggerInput();
         UpdateTemporaryEdge();
         UpdateTemporaryLoad();
-        UpdateVisualFeedback();
+        UpdateModeText();
     }
 
-    void HandleModeSwitch()
+    // ------------------------------------------------------------------ //
+    // Inline mode selection (Y button)
+    // ------------------------------------------------------------------ //
+
+    void HandleModeSelectInput()
     {
-        Vector2 rightThumbAxis = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
-        Vector2 leftThumbAxis = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch);
-        bool leftThumbDown = OVRInput.GetDown(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.LTouch);
+        bool yPressed = OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch);
 
-        if (Time.time - lastThumbTime < thumbCooldown) return;
-
-        if (rightThumbAxis.x > 0.7f)
+        if (yPressed)
         {
-            CycleMode(1);
-            lastThumbTime = Time.time;
+            if (!_selectingMode)
+            {
+                // Enter mode-select state — cursor starts at current mode
+                _selectingMode = true;
+                _modeCursor    = (int)currentMode;
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+            }
+            else
+            {
+                // Y again → confirm selection
+                ConfirmModeSelection();
+            }
+            return;
         }
-        else if (rightThumbAxis.x < -0.7f)
+
+        if (!_selectingMode) { return; }
+
+        // Right thumbstick X moves cursor while selecting
+        if (Time.time - lastThumbTime >= ThumbCooldown)
         {
-            CycleMode(-1);
-            lastThumbTime = Time.time;
+            float x = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).x;
+            int count = System.Enum.GetValues(typeof(Mode)).Length;
+            if (x > 0.7f)
+            {
+                _modeCursor   = (_modeCursor + 1) % count;
+                lastThumbTime = Time.time;
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+            }
+            else if (x < -0.7f)
+            {
+                _modeCursor   = (_modeCursor - 1 + count) % count;
+                lastThumbTime = Time.time;
+                HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+            }
         }
 
-        if (currentMode == Mode.Analyze)
+        // Trigger confirms, B cancels
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
-            if (leftThumbAxis.y > 0.7f)
+            ConfirmModeSelection();
+        }
+        else if (OVRInput.GetDown(OVRInput.Button.Two, OVRInput.Controller.RTouch))
+        {
+            _selectingMode = false; // cancel
+            HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+        }
+    }
+
+    void ConfirmModeSelection()
+    {
+        _selectingMode = false;
+        SwitchToMode((Mode)_modeCursor);
+    }
+
+    // ------------------------------------------------------------------ //
+    // Mode switching
+    // ------------------------------------------------------------------ //
+
+    void SwitchToMode(Mode newMode)
+    {
+        Mode oldMode = currentMode;
+        currentMode  = newMode;
+
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
+        markerController?.SetModeColor(currentMode);
+        UpdatePreviewVisibility();
+        ClearTempVisuals();
+        ClearSelection();
+        VisualFeedbackManager.Instance?.ClearHover();
+        VisualFeedbackManager.Instance?.ClearSelection();
+
+        if (oldMode == Mode.Optimize && newMode != Mode.Optimize)
+        {
+            optimizeVisualizer?.HideHints();
+            optimizeVisualizer?.ClearRollbackPreview();
+            currentOptimizeTool = OptimizeTool.Move;
+        }
+
+        if (newMode == Mode.Optimize)
+        {
+            // Clear any leftover displacement ghosts from Build/Analyze; force colors
+            // will be reapplied by OptimizeVisualizer.RefreshHints via ApplyForceColors.
+            structuralAnalyzer?.ClearVisuals();
+            optimizeVisualizer?.ShowHints();
+            // Refresh graph with existing history (Move tool → no cursor shown)
+            if (optimizeSession != null)
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, false);
+        }
+        else
+        {
+            structuralAnalyzer?.ClearVisuals();
+        }
+        // Results text panel is never shown — analysis info is in the HUD only
+        if (structuralAnalyzer?.resultsDisplay != null)
+            structuralAnalyzer.resultsDisplay.gameObject.SetActive(false);
+
+        unifiedTutorial?.ShowForMode(currentMode);
+        UpdateModeText();
+    }
+
+    // ------------------------------------------------------------------ //
+    // Tool cycling — Right thumbstick X (only when NOT selecting mode)
+    // ------------------------------------------------------------------ //
+
+    void HandleToolSwitch()
+    {
+        Vector2 rightThumb  = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch);
+        Vector2 leftThumb   = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch);
+        bool    leftThumbDown = OVRInput.GetDown(OVRInput.Button.PrimaryThumbstick, OVRInput.Controller.LTouch);
+
+        if (Time.time - lastThumbTime < ThumbCooldown) { return; }
+
+        // Right thumbstick X: cycle tools (left/right)
+        if (rightThumb.x > 0.7f)
+        {
+            if      (currentMode == Mode.Build)    { CycleBuildTool(1);    lastThumbTime = Time.time; }
+            else if (currentMode == Mode.Setup)    { CycleSetupTool(1);    lastThumbTime = Time.time; }
+            else if (currentMode == Mode.Optimize) { CycleOptimizeTool(1); lastThumbTime = Time.time; }
+        }
+        else if (rightThumb.x < -0.7f)
+        {
+            if      (currentMode == Mode.Build)    { CycleBuildTool(-1);    lastThumbTime = Time.time; }
+            else if (currentMode == Mode.Setup)    { CycleSetupTool(-1);    lastThumbTime = Time.time; }
+            else if (currentMode == Mode.Optimize) { CycleOptimizeTool(-1); lastThumbTime = Time.time; }
+        }
+
+        // Left thumbstick Y: displacement exaggeration in Build/Analyze tool
+        if (currentMode == Mode.Build && currentBuildTool == BuildTool.Analyze && structuralAnalyzer != null)
+        {
+            if (leftThumb.y > 0.7f)
             {
                 structuralAnalyzer.exaggerationFactor *= 1.1f;
                 structuralAnalyzer.RefreshDisplacements();
+                lastThumbTime = Time.time;
             }
-            else if (leftThumbAxis.y < -0.7f)
+            else if (leftThumb.y < -0.7f)
             {
                 structuralAnalyzer.exaggerationFactor /= 1.1f;
                 structuralAnalyzer.RefreshDisplacements();
+                lastThumbTime = Time.time;
             }
         }
 
-        // Left thumbstick press toggles grid snap on/off (works in any mode if grid is set)
+        // Left thumbstick X: compliance history cursor — only in Optimize / Rollback tool
+        // Right = newer (forward in history), Left = older (backward)
+        if (currentMode == Mode.Optimize && currentOptimizeTool == OptimizeTool.Rollback && optimizeSession != null)
+        {
+            if (leftThumb.x > 0.7f)
+            {
+                optimizeSession.MoveCursor(1);
+                lastThumbTime = Time.time;
+                optimizeVisualizer?.ShowRollbackPreview(optimizeSession.GetCursorSnapshot());
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, true);
+                UpdateModeText();
+            }
+            else if (leftThumb.x < -0.7f)
+            {
+                optimizeSession.MoveCursor(-1);
+                lastThumbTime = Time.time;
+                optimizeVisualizer?.ShowRollbackPreview(optimizeSession.GetCursorSnapshot());
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, true);
+                UpdateModeText();
+            }
+        }
+
+        // Setup.Grid: left thumbstick adjusts axis/size
+        if (currentMode == Mode.Setup && currentSetupTool == SetupTool.Grid && gridRenderer != null)
+        {
+            if      (leftThumb.x >  0.7f) { CycleGridAxis(1);   lastThumbTime = Time.time; }
+            else if (leftThumb.x < -0.7f) { CycleGridAxis(-1);  lastThumbTime = Time.time; }
+            else if (leftThumb.y >  0.7f) { AdjustGridSize(1);  lastThumbTime = Time.time; }
+            else if (leftThumb.y < -0.7f) { AdjustGridSize(-1); lastThumbTime = Time.time; }
+        }
+
+        // Left thumbstick press: toggle grid snap
         if (leftThumbDown && gridRenderer != null && gridRenderer.isGridSet)
         {
             gridRenderer.isSnapEnabled = !gridRenderer.isSnapEnabled;
-            Debug.Log($"[Grid] Snap {(gridRenderer.isSnapEnabled ? "ENABLED" : "DISABLED")}");
+            if  ( gridRenderer.isSnapEnabled && !gridRenderer.isActive) { gridRenderer.ShowGrid(); }
+            else if (!gridRenderer.isSnapEnabled &&  gridRenderer.isActive) { gridRenderer.HideGrid(); }
             HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
-
-            // Also toggle grid visibility to match snap state
-            if (gridRenderer.isSnapEnabled && !gridRenderer.isActive)
-            {
-                gridRenderer.ShowGrid();
-            }
-            else if (!gridRenderer.isSnapEnabled && gridRenderer.isActive)
-            {
-                gridRenderer.HideGrid();
-            }
-            return;
         }
+    }
 
-        if (currentMode == Mode.Grid && gridRenderer.isActive)
+    void CycleOptimizeTool(int dir)
+    {
+        OptimizeTool prev = currentOptimizeTool;
+        int count = System.Enum.GetValues(typeof(OptimizeTool)).Length;
+        currentOptimizeTool = (OptimizeTool)(((int)currentOptimizeTool + dir + count) % count);
+
+        // Leaving Rollback: clear ghost preview, redraw graph without cursor
+        if (prev == OptimizeTool.Rollback && currentOptimizeTool != OptimizeTool.Rollback)
         {
-            if (leftThumbAxis.x > 0.7f)
-            {
-                CycleGridAxis(1);
-                lastThumbTime = Time.time;
-            }
-            else if (leftThumbAxis.x < -0.7f)
-            {
-                CycleGridAxis(-1);
-                lastThumbTime = Time.time;
-            }
-            else if (leftThumbAxis.y > 0.7f)
-            {
-                if (currentGridAxis == GridAxis.Spacing)
-                {
-                    gridRenderer.spacing += 0.005f;
-                }
-                else if (currentGridAxis == GridAxis.X)
-                {
-                    gridRenderer.size.x += 1;
-                }
-                else if (currentGridAxis == GridAxis.Y)
-                {
-                    gridRenderer.size.y += 1;
-                }
-                else if (currentGridAxis == GridAxis.Z)
-                {
-                    gridRenderer.size.z += 1;
-                }
-                lastThumbTime = Time.time;
-                gridRenderer.RefreshGrid();
-            }
-            else if (leftThumbAxis.y < -0.7f)
-            {
-                if (currentGridAxis == GridAxis.Spacing)
-                {
-                    gridRenderer.spacing = Mathf.Max(0.01f, gridRenderer.spacing - 0.01f);
-                }
-                else if (currentGridAxis == GridAxis.X)
-                {
-                    gridRenderer.size.x = Mathf.Max(1, gridRenderer.size.x - 1);
-                }
-                else if (currentGridAxis == GridAxis.Y)
-                {
-                    gridRenderer.size.y = Mathf.Max(1, gridRenderer.size.y - 1);
-                }
-                else if (currentGridAxis == GridAxis.Z)
-                {
-                    gridRenderer.size.z = Mathf.Max(1, gridRenderer.size.z - 1);
-                }
-                lastThumbTime = Time.time;
-                gridRenderer.RefreshGrid();
-            }
+            optimizeVisualizer?.ClearRollbackPreview();
+            if (optimizeSession != null)
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, false);
         }
+
+        // Entering Rollback: immediately show current cursor in graph
+        if (prev != OptimizeTool.Rollback && currentOptimizeTool == OptimizeTool.Rollback)
+        {
+            optimizeVisualizer?.ShowRollbackPreview(optimizeSession?.GetCursorSnapshot());
+            if (optimizeSession != null)
+                modeDisplayUI?.UpdateGraph(optimizeSession.History, optimizeSession.CursorIndex, optimizeSession.BestIndex, true);
+        }
+
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+        UpdateModeText();
+    }
+
+    void CycleBuildTool(int dir)
+    {
+        BuildTool prev = currentBuildTool;
+        int count = System.Enum.GetValues(typeof(BuildTool)).Length;
+        currentBuildTool = (BuildTool)(((int)currentBuildTool + dir + count) % count);
+        ClearTempVisuals();
+        ClearSelection();
+
+        // Hide analysis visuals when leaving Analyze tool
+        if (prev == BuildTool.Analyze && currentBuildTool != BuildTool.Analyze)
+        {
+            structuralAnalyzer?.ClearVisuals();
+            if (structuralAnalyzer != null)
+                structuralAnalyzer.resultsDisplay.gameObject.SetActive(false);
+        }
+
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+        UpdateModeText();
+    }
+
+    void CycleSetupTool(int dir)
+    {
+        int count = System.Enum.GetValues(typeof(SetupTool)).Length;
+        currentSetupTool = (SetupTool)(((int)currentSetupTool + dir + count) % count);
+        UpdatePreviewVisibility();
+        HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
+        UpdateModeText();
     }
 
     void CycleGridAxis(int dir)
     {
-        int numAxes = System.Enum.GetNames(typeof(GridAxis)).Length;
-        int next = ((int)currentGridAxis + dir + numAxes) % numAxes;
-        currentGridAxis = (GridAxis)next;
+        int count = System.Enum.GetValues(typeof(GridAxis)).Length;
+        currentGridAxis = (GridAxis)(((int)currentGridAxis + dir + count) % count);
         UpdateModeText();
     }
 
-    void CycleMode(int dir)
+    void AdjustGridSize(int dir)
     {
-        int numModes = System.Enum.GetNames(typeof(Mode)).Length;
-        int next = ((int)currentMode + dir + numModes) % numModes;
-        currentMode = (Mode)next;
-        UpdateModeText();
-
-        // Haptic feedback for mode change
-        HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-
-        // Update marker color and visibility
-        markerController?.SetModeColor(currentMode);
-        UpdatePreviewVisibility();
-
-        // Cleanup temporary objects
-        CleanupGhostObjects();
-        if (tempEdge != null)
-        {
-            graphManager.RemoveLocalEdge(tempEdge);
-            tempEdge = null;
-            firstSelectedNode = null;
-        }
-        if (ghostLoad != null)
-        {
-            Destroy(ghostLoad);
-            ghostLoad = null;
-            firstLoadNode = null;
-        }
-
-        // Clear visual feedback
-        VisualFeedbackManager.Instance?.ClearHover();
-        VisualFeedbackManager.Instance?.ClearSelection();
-
-        // Update tutorial for new mode
-        unifiedTutorial?.ShowForMode(currentMode);
-
-        // Show confirmation when entering Analyze mode
-        if (currentMode == Mode.Analyze)
-        {
-            ShowAnalyzePrompt();
-            structuralAnalyzer?.resultsDisplay.gameObject.SetActive(true);
-        }
-        else
-        {
-            structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
-            structuralAnalyzer?.ClearVisuals();
-        }
-
-        // Optimize mode: show/hide gradient hints
-        if (currentMode == Mode.Optimize)
-        {
-            optimizeVisualizer?.ShowHints();
-        }
-        else
-        {
-            optimizeVisualizer?.HideHints();
-        }
+        if      (currentGridAxis == GridAxis.Spacing) { gridRenderer.spacing = dir > 0 ? gridRenderer.spacing + 0.005f : Mathf.Max(0.01f, gridRenderer.spacing - 0.01f); }
+        else if (currentGridAxis == GridAxis.X)       { gridRenderer.size.x = Mathf.Max(1, gridRenderer.size.x + dir); }
+        else if (currentGridAxis == GridAxis.Y)       { gridRenderer.size.y = Mathf.Max(1, gridRenderer.size.y + dir); }
+        else if (currentGridAxis == GridAxis.Z)       { gridRenderer.size.z = Mathf.Max(1, gridRenderer.size.z + dir); }
+        gridRenderer.RefreshGrid();
     }
 
-    void ShowAnalyzePrompt()
-    {
-        // Simple text prompt if no UI panel is set up
-        if (modeText != null)
-        {
-            modeText.text = "Mode: Analyze\nPress TRIGGER to run analysis\nPress GRIP to cancel";
-        }
-    }
+    // ------------------------------------------------------------------ //
+    // UI — mode text
+    // ------------------------------------------------------------------ //
 
     void UpdateModeText()
     {
-        // Update old text display (backward compatibility)
         if (modeText != null)
         {
-            modeText.text = "Mode: " + currentMode.ToString();
-
-            if (currentMode == Mode.Network)
-            {
-                bool isConnected = NetworkManager.Singleton != null &&
-                                  (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
-                if (isConnected)
-                {
-                    string role = NetworkManager.Singleton.IsHost ? "HOST" : "CLIENT";
-                    modeText.text += $"\n<color=green>Connected as {role}</color>";
-                }
-                else
-                {
-                    modeText.text += "\n<color=yellow>Not Connected</color>";
-                }
-            }
-            else if (currentMode == Mode.Grid)
-            {
-                modeText.text += "\nGrid Axis: " + currentGridAxis.ToString();
-                if (currentGridAxis == GridAxis.Spacing)
-                {
-                    modeText.text += $" = {gridRenderer.spacing:F3}";
-                }
-            }
-
-            // Show warning if not connected
-            bool connected = NetworkManager.Singleton != null &&
-                            (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
-            if (!connected && currentMode != Mode.Network)
-            {
-                modeText.text += "\n<color=red>Network not connected!</color>";
-            }
+            modeText.text = $"Mode: {currentMode}";
+            if (currentMode == Mode.Build)   { modeText.text += $" / {currentBuildTool}"; }
+            if (currentMode == Mode.Setup)   { modeText.text += $" / {currentSetupTool}"; }
+            if (currentMode == Mode.Optimize) { modeText.text += $" / {currentOptimizeTool}"; }
         }
 
-        // Update new mode display UI
-        if (modeDisplayUI != null)
-        {
-            modeDisplayUI.UpdateModeDisplay(currentMode, currentGridAxis, gridRenderer != null ? gridRenderer.spacing : 0.1f);
-        }
+        modeDisplayUI?.UpdateModeDisplay(
+            currentMode, currentBuildTool, currentSetupTool,
+            currentGridAxis, gridRenderer != null ? gridRenderer.spacing : 0.1f,
+            currentOptimizeTool, _selectingMode, _modeCursor);
     }
 
-    void HandleTriggerInput()
-    {
-        bool rightTriggerPressed = OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-        if (rightTriggerPressed && !triggerHeldLastFrame)
-        {
-            OnTriggerPressed();
-        }
-        triggerHeldLastFrame = rightTriggerPressed;
-
-        // Also check for grip button in Analyze mode (cancel)
-        if (currentMode == Mode.Analyze)
-        {
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch))
-            {
-                CancelAnalysis();
-            }
-        }
-    }
-
-    void OnTriggerPressed()
-    {
-        switch (currentMode)
-        {
-            case Mode.SetupWorld:
-                if (worldCoordinateManager != null)
-                {
-                    worldCoordinateManager.SetAnchor();
-                }
-                break;
-            case Mode.AddNode:
-                // Convert world position to local position (ParentWorld basis) for network sync
-                Vector3 worldPos = GetGridPoint(markerTransform.position);
-                Vector3 localPos = worldCoordinateManager.WorldToLocal(worldPos);
-                graphManager.CreateNodeServerRpc(localPos);
-                HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-                markerController?.Pulse();
-                // Notify tutorial system of action
-                if (unifiedTutorial != null)
-                {
-                    unifiedTutorial.OnActionPerformed(Mode.AddNode);
-                }
-                break;
-            case Mode.AddEdge:
-                HandleAddEdge();
-                break;
-            case Mode.AddLoad:
-                HandleAddLoad();
-                break;
-            case Mode.ToggleSupport:
-                var nodeToToggle = GetNodeAtMarker();
-                if (nodeToToggle != null)
-                {
-                    nodeToToggle.ToggleSupport();
-                    HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-                    // Notify tutorial system of action
-                    if (unifiedTutorial != null)
-                    {
-                        unifiedTutorial.OnActionPerformed(Mode.ToggleSupport);
-                    }
-                }
-                break;
-            case Mode.Move:
-                var nodeToMove = GetNodeAtMarker();
-                if (nodeToMove != null)
-                {
-                    StartCoroutine(MoveNodeCoroutine(nodeToMove));
-                    break;
-                }
-                var edgeToMove = GetEdgeAtMarker();
-                if (edgeToMove != null)
-                {
-                    StartCoroutine(MoveEdgeCoroutine(edgeToMove));
-                    break;
-                }
-                var loadToMove = GetLoadAtMarker();
-                if (loadToMove != null)
-                {
-                    StartCoroutine(MoveLoadCoroutine(loadToMove));
-                    break;
-                }
-                break;
-            case Mode.Delete:
-                var nodeToDelete = GetNodeAtMarker();
-                if (nodeToDelete != null)
-                {
-                    graphManager.DeleteNetworkObjectServerRpc(nodeToDelete.NetworkObjectId);
-                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
-                    optimizeVisualizer?.OnStructureChanged();
-                    break;
-                }
-                var edgeToDelete = GetEdgeAtMarker();
-                if (edgeToDelete != null)
-                {
-                    graphManager.DeleteNetworkObjectServerRpc(edgeToDelete.NetworkObjectId);
-                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
-                    optimizeVisualizer?.OnStructureChanged();
-                    break;
-                }
-                var loadToDelete = GetLoadAtMarker();
-                if (loadToDelete != null)
-                {
-                    graphManager.DeleteNetworkObjectServerRpc(loadToDelete.NetworkObjectId);
-                    HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
-                    optimizeVisualizer?.OnStructureChanged();
-                }
-                break;
-            case Mode.Grab:
-                NodeBehaviour nodeToGrab = GetNodeAtMarker();
-                if (nodeToGrab != null)
-                {
-                    StartCoroutine(GrabStructureCoroutine(nodeToGrab));
-                }
-                else
-                {
-                    EdgeBehaviour edgeToGrab = GetEdgeAtMarker();
-                    if (edgeToGrab != null)
-                    {
-                        NodeBehaviour startNode = edgeToGrab.nodeA ?? edgeToGrab.nodeB;
-                        StartCoroutine(GrabStructureCoroutine(startNode));
-                    }
-                }
-                break;
-            case Mode.Analyze:
-                // Trigger confirms analysis
-                if (structuralAnalyzer != null)
-                {
-
-                    ConfirmAnalysis();
-                }
-                break;
-            case Mode.Optimize:
-                // Trigger manually refreshes hints (useful after network-synced changes)
-                optimizeVisualizer?.OnStructureChanged();
-                break;
-            case Mode.Grid:
-                if (surfaceFinder != null)
-                {
-                    surfaceFinder.SetAnchor();
-                }
-                break;
-            case Mode.Import:
-                // Load SimpleTrussBridge example structure
-                SaveLoadManager saveLoadManager = FindObjectOfType<SaveLoadManager>();
-                if (saveLoadManager != null)
-                {
-                    saveLoadManager.LoadStructure("SimpleTrussBridge", (success) =>
-                    {
-                        if (success)
-                        {
-                            Debug.Log("[Import] Loaded: SimpleTrussBridge");
-                            // HapticFeedback is already triggered in SaveLoadManager
-                            modeDisplayUI?.ShowMessage("Loaded: SimpleTrussBridge", Color.green);
-                        }
-                        else
-                        {
-                            Debug.LogWarning("[Import] SimpleTrussBridge not found - no example to load");
-                            // HapticFeedback is already triggered in SaveLoadManager
-                            modeDisplayUI?.ShowMessage("No structure file found", Color.yellow);
-                        }
-                    });
-                }
-                else
-                {
-                    Debug.LogWarning("[Import] SaveLoadManager not found - add it to the scene");
-                    HapticFeedback.Trigger(HapticFeedback.HapticType.Light);
-                    modeDisplayUI?.ShowMessage("Setup SaveLoadManager first", Color.yellow);
-                }
-                break;
-        }
-    }
+    // ------------------------------------------------------------------ //
+    // Public API
+    // ------------------------------------------------------------------ //
 
     public void ConfirmAnalysis()
     {
-        if (structuralAnalyzer != null)
-        {
-            Debug.LogWarning("Analysis started!");
-            structuralAnalyzer.PerformAnalysis();
-        }
-        // Reset mode text
+        structuralAnalyzer?.PerformAnalysis();
         UpdateModeText();
     }
 
     public void CancelAnalysis()
     {
-        Debug.LogWarning("Analysis cancelled");
-
-        // Reset mode text
         UpdateModeText();
     }
 
-    void HandleAddEdge()
-    {
-        NodeBehaviour node = GetNodeAtMarker();
-        if (node == null) return;
-
-        if (firstSelectedNode == null)
-        {
-            firstSelectedNode = node;
-            tempEdge = graphManager.CreateLocalEdge(firstSelectedNode);
-            HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-            VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(0.2f, 1f, 0.2f, 1f));
-        }
-        else if (node != firstSelectedNode)
-        {
-            bool edgeExists = false;
-            if (firstSelectedNode.connectedEdges != null)
-            {
-                foreach (var e in firstSelectedNode.connectedEdges)
-                {
-                    if (e == null) continue;
-                    if ((e.nodeA == firstSelectedNode && e.nodeB == node) ||
-                        (e.nodeB == firstSelectedNode && e.nodeA == node))
-                    {
-                        edgeExists = true;
-                        break;
-                    }
-                }
-            }
-
-            if (!edgeExists)
-            {
-                graphManager.CreateEdgeServerRpc(firstSelectedNode.NetworkObjectId, node.NetworkObjectId);
-                HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
-                optimizeVisualizer?.OnStructureChanged();
-            }
-            else
-            {
-                HapticFeedback.Trigger(HapticFeedback.HapticType.Error);
-                modeDisplayUI?.ShowMessage("Edge already exists between these nodes!", new Color(1f, 0.3f, 0.3f));
-                StartCoroutine(ClearMessageAfterDelay(2f));
-            }
-            VisualFeedbackManager.Instance?.ClearSelection();
-            if (tempEdge != null) graphManager.RemoveLocalEdge(tempEdge);
-            firstSelectedNode = null;
-            tempEdge = null;
-        }
-    }
-
-    void HandleAddLoad()
-    {
-        if (firstLoadNode == null)
-        {
-            NodeBehaviour node = GetNodeAtMarker();
-            if (node == null) return;
-            firstLoadNode = node;
-
-            // Create ghost load for visualization
-            if (graphManager.loadPrefab != null)
-            {
-                ghostLoad = Instantiate(graphManager.loadPrefab, node.transform.position, Quaternion.identity);
-                // Parent the ghost load to the node so its transform is in the node's local space
-                ghostLoad.transform.SetParent(node.transform);
-
-                var netObj = ghostLoad.GetComponent<NetworkObject>();
-                if (netObj != null) Destroy(netObj);
-                var lb = ghostLoad.GetComponent<LoadBehaviour>();
-                if (lb != null) { lb.node = node; lb.UpdateArrow(); }
-            }
-
-            HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
-            VisualFeedbackManager.Instance?.SetSelected(node.gameObject, new Color(1f, 0.6f, 0.2f, 1f));
-        }
-        else
-        {
-            Vector3 worldDir = markerTransform.position - firstLoadNode.transform.position;
-            float mag = worldDir.magnitude;
-            // Convert to Node-local direction for network sync
-            Vector3 localDir = firstLoadNode.transform.InverseTransformDirection(worldDir.normalized);
-
-            graphManager.CreateLoadServerRpc(firstLoadNode.NetworkObjectId, localDir, mag);
-
-            HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
-            VisualFeedbackManager.Instance?.ClearSelection();
-            firstLoadNode = null;
-            if (ghostLoad != null) { Destroy(ghostLoad); ghostLoad = null; }
-            optimizeVisualizer?.OnStructureChanged();
-        }
-    }
-
-    void UpdateTemporaryEdge()
-    {
-        if (tempEdge != null && firstSelectedNode != null && markerTransform != null)
-        {
-            tempEdge.UpdateEdgePosition(markerTransform.position);
-        }
-    }
-
-    void UpdateTemporaryLoad()
-    {
-        if (firstLoadNode == null || ghostLoad == null) return;
-        Vector3 worldDir = markerTransform.position - firstLoadNode.transform.position;
-        float mag = worldDir.magnitude;
-        // Convert to Node-local direction (consistent with network sync)
-        // Vector3 localDir = firstLoadNode.transform.InverseTransformDirection(worldDir.normalized);
-
-        var lb = ghostLoad.GetComponent<LoadBehaviour>();
-        if (lb != null)
-        {
-            lb.direction = worldDir;
-            lb.magnitude = mag;
-            lb.UpdateArrow();
-        }
-    }
-
-    Vector3 GetGridPoint(Vector3 pos)
-    {
-        // Only snap to grid if grid is set AND snap is enabled
-        if (gridRenderer == null || !gridRenderer.isGridSet || !gridRenderer.isSnapEnabled) return pos;
-        return gridRenderer.GetClosestGridPoint(pos);
-    }
-
-    NodeBehaviour GetNodeAtMarker()
-    {
-        NodeBehaviour[] nodes = FindObjectsByType<NodeBehaviour>(FindObjectsSortMode.None);
-        NodeBehaviour closest = null;
-        float minDist = 0.03f;
-        foreach (var node in nodes)
-        {
-            if (node == null) continue;
-            float dist = Vector3.Distance(node.transform.position, markerTransform.position);
-            if (dist < minDist)
-            {
-                closest = node;
-                break;
-            }
-        }
-        return closest;
-    }
-
-    EdgeBehaviour GetEdgeAtMarker()
-    {
-        EdgeBehaviour[] edges = FindObjectsByType<EdgeBehaviour>(FindObjectsSortMode.None);
-        EdgeBehaviour closest = null;
-        float minDist = 0.02f;
-        foreach (var edge in edges)
-        {
-            if (edge == null || edge.nodeA == null || edge.nodeB == null) continue;
-            Vector3 closestPoint = ClosestPointOnSegment(edge.nodeA.transform.position, edge.nodeB.transform.position, markerTransform.position);
-            float dist = Vector3.Distance(markerTransform.position, closestPoint);
-            if (dist < minDist)
-            {
-                closest = edge;
-                break;
-            }
-        }
-        return closest;
-    }
-
-    LoadBehaviour GetLoadAtMarker()
-    {
-        LoadBehaviour[] loads = FindObjectsByType<LoadBehaviour>(FindObjectsSortMode.None);
-        LoadBehaviour closest = null;
-        float minDist = 0.03f;
-        foreach (var load in loads)
-        {
-            if (load == null || load.node == null) continue;
-
-            float dist = Vector3.Distance(load.EndPoint(), markerTransform.position);
-            if (dist < minDist)
-            {
-                closest = load;
-                break;
-            }
-        }
-        return closest;
-    }
-
-    Vector3 ClosestPointOnSegment(Vector3 a, Vector3 b, Vector3 point)
-    {
-        Vector3 ab = b - a;
-        float t = Vector3.Dot(point - a, ab) / Vector3.Dot(ab, ab);
-        t = Mathf.Clamp01(t);
-        return a + t * ab;
-    }
-
-    IEnumerator MoveNodeCoroutine(NodeBehaviour node)
-    {
-        if (node == null) yield break;
-
-        // Request ownership if needed (assuming Server Authoritative or similar)
-        // For simplicity, we assume Client Authoritative NetworkTransform
-
-        Vector3 offset = node.transform.position - markerTransform.position;
-        while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            Vector3 movedPos = GetGridPoint(markerTransform.position + offset);
-            // Convert to local position for network sync
-            Vector3 localPos = worldCoordinateManager.WorldToLocal(movedPos);
-
-            if (NetworkManager.Singleton.IsServer)
-            {
-                node.transform.localPosition = localPos;
-            }
-            else
-            {
-                node.MoveServerRpc(localPos);
-            }
-            // Edges update automatically in their Update() loop
-            yield return null;
-        }
-
-        optimizeVisualizer?.OnStructureChanged();
-    }
-
-    IEnumerator MoveEdgeCoroutine(EdgeBehaviour edge)
-    {
-        if (edge == null || edge.nodeA == null || edge.nodeB == null) yield break;
-        Vector3 offsetA = edge.nodeA.transform.position - markerTransform.position;
-        Vector3 offsetB = edge.nodeB.transform.position - markerTransform.position;
-        while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            Vector3 newPosA = markerTransform.position + offsetA;
-            Vector3 newPosB = markerTransform.position + offsetB;
-            // Convert to local positions for network sync
-            Vector3 localPosA = worldCoordinateManager.WorldToLocal(newPosA);
-            Vector3 localPosB = worldCoordinateManager.WorldToLocal(newPosB);
-
-            if (NetworkManager.Singleton.IsServer)
-            {
-                edge.nodeA.transform.localPosition = localPosA;
-                edge.nodeB.transform.localPosition = localPosB;
-            }
-            else
-            {
-                edge.nodeA.MoveServerRpc(localPosA);
-                edge.nodeB.MoveServerRpc(localPosB);
-            }
-            yield return null;
-        }
-
-        optimizeVisualizer?.OnStructureChanged();
-    }
-
-    IEnumerator MoveLoadCoroutine(LoadBehaviour load)
-    {
-        if (load == null || load.node == null) yield break;
-        Vector3 offset = load.EndPoint() - markerTransform.position; while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            Vector3 worldDir = (markerTransform.position + offset) - load.node.transform.position;
-            float mag = worldDir.magnitude;
-            // Convert to Node-local direction for network sync
-            Vector3 localDir = load.node.transform.InverseTransformDirection(worldDir.normalized);
-
-            if (NetworkManager.Singleton.IsServer)
-            {
-                load.directionNet.Value = localDir;
-                load.magnitudeNet.Value = mag;
-            }
-            else
-            {
-                load.UpdateLoadServerRpc(localDir, mag);
-            }
-            yield return null;
-        }
-    }
-
-    IEnumerator GrabStructureCoroutine(NodeBehaviour startNode)
-    {
-        if (startNode == null) yield break;
-        HashSet<NodeBehaviour> connectedNodes = new HashSet<NodeBehaviour>();
-        Queue<NodeBehaviour> queue = new Queue<NodeBehaviour>();
-        queue.Enqueue(startNode);
-        connectedNodes.Add(startNode);
-        while (queue.Count > 0)
-        {
-            NodeBehaviour node = queue.Dequeue();
-            if (node.connectedEdges != null)
-            {
-                foreach (EdgeBehaviour edge in node.connectedEdges)
-                {
-                    NodeBehaviour other = edge.nodeA == node ? edge.nodeB : edge.nodeA;
-                    if (other != null && !connectedNodes.Contains(other))
-                    {
-                        connectedNodes.Add(other);
-                        queue.Enqueue(other);
-                    }
-                }
-            }
-        }
-
-        Dictionary<NodeBehaviour, Vector3> offsets = new Dictionary<NodeBehaviour, Vector3>();
-        foreach (var node in connectedNodes)
-        {
-            offsets[node] = node.transform.position - markerTransform.position;
-        }
-        while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
-        {
-            foreach (var node in connectedNodes)
-            {
-                Vector3 newPos = markerTransform.position + offsets[node];
-                // Convert to local position for network sync
-                Vector3 localPos = worldCoordinateManager.WorldToLocal(newPos);
-                if (NetworkManager.Singleton.IsServer)
-                {
-                    node.transform.localPosition = localPos;
-                }
-                else
-                {
-                    node.MoveServerRpc(localPos);
-                }
-            }
-            yield return null;
-        }
-    }
-
-    // ========== VISUAL FEEDBACK METHODS ==========
-
-    void SetupGhostEdgeLine()
-    {
-        GameObject lineObj = new GameObject("GhostEdgeLine");
-        ghostEdgeLine = lineObj.AddComponent<LineRenderer>();
-        ghostEdgeLine.startWidth = 0.005f;
-        ghostEdgeLine.endWidth = 0.005f;
-        ghostEdgeLine.material = new Material(Shader.Find("Sprites/Default"));
-        ghostEdgeLine.startColor = new Color(0.2f, 0.6f, 1f, 0.5f);
-        ghostEdgeLine.endColor = new Color(0.2f, 0.6f, 1f, 0.5f);
-        ghostEdgeLine.enabled = false;
-        ghostEdgeLine.positionCount = 2;
-    }
-
-    void UpdateVisualFeedback()
-    {
-        // Clear previous hover
-        if (hoveredObject != null)
-        {
-            VisualFeedbackManager.Instance?.ClearHover();
-            hoveredObject = null;
-        }
-
-        switch (currentMode)
-        {
-            case Mode.AddNode:
-                UpdateAddNodeFeedback();
-                break;
-            case Mode.AddEdge:
-                UpdateAddEdgeFeedback();
-                break;
-            case Mode.AddLoad:
-                UpdateAddLoadFeedback();
-                break;
-            case Mode.ToggleSupport:
-                UpdateToggleSupportFeedback();
-                break;
-            case Mode.Move:
-                UpdateMoveFeedback();
-                break;
-            case Mode.Delete:
-                UpdateDeleteFeedback();
-                break;
-            case Mode.Grab:
-                UpdateGrabFeedback();
-                break;
-        }
-    }
-
-    void UpdateAddNodeFeedback()
-    {
-        // Show ghost node at grid snap position
-        Vector3 snapPos = GetGridPoint(markerTransform.position);
-
-        if (ghostNode == null && graphManager.nodePrefab != null)
-        {
-            ghostNode = Instantiate(graphManager.nodePrefab, snapPos, Quaternion.identity);
-            ghostNode.name = "GhostNode";
-
-            // Make it semi-transparent
-            Renderer[] renderers = ghostNode.GetComponentsInChildren<Renderer>();
-            foreach (var rend in renderers)
-            {
-                Material[] mats = rend.materials;
-                for (int i = 0; i < mats.Length; i++)
-                {
-                    mats[i] = new Material(mats[i]);
-                    // Check if material has _Color property (skip TextMeshPro materials)
-                    if (mats[i].HasProperty("_Color"))
-                    {
-                        Color c = mats[i].color;
-                        c.a = 0.3f;
-                        mats[i].color = c;
-                    }
-                }
-                rend.materials = mats;
-            }
-
-            // Disable behavior scripts and hide text label
-            var nodeBehaviour = ghostNode.GetComponent<NodeBehaviour>();
-            if (nodeBehaviour != null)
-            {
-                nodeBehaviour.enabled = false;
-                // Hide text label on ghost node
-                if (nodeBehaviour.nodeLabel != null)
-                {
-                    nodeBehaviour.nodeLabel.gameObject.SetActive(false);
-                }
-            }
-        }
-        else if (ghostNode != null)
-        {
-            ghostNode.transform.position = snapPos;
-        }
-    }
-
-    void UpdateAddEdgeFeedback()
-    {
-        // Cleanup ghost node if it exists
-        if (ghostNode != null)
-        {
-            Destroy(ghostNode);
-            ghostNode = null;
-        }
-
-        // Hover highlight on nodes
-        NodeBehaviour node = GetNodeAtMarker();
-        if (node != null)
-        {
-            hoveredObject = node.gameObject;
-            Color highlightColor = (firstSelectedNode == null) ?
-                new Color(0.2f, 1f, 0.2f, 1f) : new Color(0.2f, 0.6f, 1f, 1f);
-
-            if (VisualFeedbackManager.Instance != null)
-            {
-                VisualFeedbackManager.Instance.HighlightHover(node.gameObject, highlightColor);
-            }
-        }
-
-        // Show ghost edge line
-        if (firstSelectedNode != null && ghostEdgeLine != null)
-        {
-            ghostEdgeLine.enabled = true;
-            ghostEdgeLine.SetPosition(0, firstSelectedNode.transform.position);
-            ghostEdgeLine.SetPosition(1, markerTransform.position);
-
-            // Check if edge would be duplicate
-            if (node != null && node != firstSelectedNode)
-            {
-                bool isDuplicate = CheckDuplicateEdge(firstSelectedNode, node);
-                ghostEdgeLine.startColor = isDuplicate ? new Color(1f, 0f, 0f, 0.5f) : new Color(0.2f, 1f, 0.2f, 0.5f);
-                ghostEdgeLine.endColor = isDuplicate ? new Color(1f, 0f, 0f, 0.5f) : new Color(0.2f, 1f, 0.2f, 0.5f);
-            }
-        }
-        else if (ghostEdgeLine != null)
-        {
-            ghostEdgeLine.enabled = false;
-        }
-    }
-
-    bool CheckDuplicateEdge(NodeBehaviour nodeA, NodeBehaviour nodeB)
-    {
-        if (nodeA.connectedEdges != null)
-        {
-            foreach (var e in nodeA.connectedEdges)
-            {
-                if (e == null) continue;
-                if ((e.nodeA == nodeA && e.nodeB == nodeB) ||
-                    (e.nodeB == nodeA && e.nodeA == nodeB))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    void UpdateAddLoadFeedback()
-    {
-        // Cleanup
-        if (ghostNode != null)
-        {
-            Destroy(ghostNode);
-            ghostNode = null;
-        }
-        if (ghostEdgeLine != null)
-        {
-            ghostEdgeLine.enabled = false;
-        }
-
-        // Hover on nodes
-        if (firstLoadNode == null)
-        {
-            NodeBehaviour node = GetNodeAtMarker();
-            if (node != null)
-            {
-                hoveredObject = node.gameObject;
-                VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(1f, 0.6f, 0.2f, 1f));
-            }
-        }
-    }
-
-    void UpdateToggleSupportFeedback()
-    {
-        CleanupGhostObjects();
-
-        NodeBehaviour node = GetNodeAtMarker();
-        if (node != null)
-        {
-            hoveredObject = node.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(0.8f, 0.8f, 0.2f, 1f));
-        }
-    }
-
-    void UpdateMoveFeedback()
-    {
-        CleanupGhostObjects();
-
-        // Highlight moveable objects
-        NodeBehaviour node = GetNodeAtMarker();
-        if (node != null)
-        {
-            hoveredObject = node.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
-            return;
-        }
-
-        EdgeBehaviour edge = GetEdgeAtMarker();
-        if (edge != null)
-        {
-            hoveredObject = edge.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(edge.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
-            return;
-        }
-
-        LoadBehaviour load = GetLoadAtMarker();
-        if (load != null)
-        {
-            hoveredObject = load.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(load.gameObject, new Color(0.6f, 0.3f, 1f, 1f));
-        }
-    }
-
-    void UpdateDeleteFeedback()
-    {
-        CleanupGhostObjects();
-
-        // Highlight deleteable objects in red
-        NodeBehaviour node = GetNodeAtMarker();
-        if (node != null)
-        {
-            hoveredObject = node.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(node.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
-            return;
-        }
-
-        EdgeBehaviour edge = GetEdgeAtMarker();
-        if (edge != null)
-        {
-            hoveredObject = edge.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(edge.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
-            return;
-        }
-
-        LoadBehaviour load = GetLoadAtMarker();
-        if (load != null)
-        {
-            hoveredObject = load.gameObject;
-            VisualFeedbackManager.Instance?.HighlightHover(load.gameObject, new Color(1f, 0.2f, 0.2f, 1f));
-        }
-    }
-
-    void UpdateGrabFeedback()
-    {
-        CleanupGhostObjects();
-
-        // Clear previous grab highlights
-        if (highlightedGrabNodes.Count > 0)
-        {
-            VisualFeedbackManager.Instance?.ClearConnectedHighlight(highlightedGrabNodes);
-            highlightedGrabNodes.Clear();
-        }
-
-        // Get hovered node or edge
-        NodeBehaviour startNode = GetNodeAtMarker();
-        if (startNode == null)
-        {
-            EdgeBehaviour edge = GetEdgeAtMarker();
-            if (edge != null)
-            {
-                startNode = edge.nodeA ?? edge.nodeB;
-            }
-        }
-
-        if (startNode != null)
-        {
-            // Find all connected nodes using BFS
-            HashSet<NodeBehaviour> connectedNodes = new HashSet<NodeBehaviour>();
-            Queue<NodeBehaviour> queue = new Queue<NodeBehaviour>();
-            queue.Enqueue(startNode);
-            connectedNodes.Add(startNode);
-
-            while (queue.Count > 0)
-            {
-                NodeBehaviour node = queue.Dequeue();
-                if (node.connectedEdges != null)
-                {
-                    foreach (EdgeBehaviour edge in node.connectedEdges)
-                    {
-                        NodeBehaviour other = edge.nodeA == node ? edge.nodeB : edge.nodeA;
-                        if (other != null && !connectedNodes.Contains(other))
-                        {
-                            connectedNodes.Add(other);
-                            queue.Enqueue(other);
-                        }
-                    }
-                }
-            }
-
-            // Highlight all connected nodes
-            highlightedGrabNodes = connectedNodes;
-            VisualFeedbackManager.Instance?.HighlightConnectedStructure(connectedNodes, new Color(0.3f, 0.9f, 1f, 1f));
-        }
-    }
-
-    void CleanupGhostObjects()
-    {
-        if (ghostNode != null)
-        {
-            Destroy(ghostNode);
-            ghostNode = null;
-        }
-        if (ghostEdgeLine != null)
-        {
-            ghostEdgeLine.enabled = false;
-        }
-    }
-
-    IEnumerator ClearMessageAfterDelay(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        modeDisplayUI?.ClearMessage(currentMode);
-    }
-
     /// <summary>
-    /// Updates raycast preview marker visibility based on current mode.
-    /// Raycast hit markers are only shown in SetupWorld or Grid modes.
-    /// Note: markerTransform (controller marker) is always visible.
+    /// Called when the entire structure is wiped (network reset, load, etc.).
+    /// Resets optimize history and clears the compliance graph.
     /// </summary>
-    void UpdatePreviewVisibility()
+    public void OnStructureReset()
     {
-        // Control WorldCoordinateManager visuals (originVisual, directionVisual, previewVisual)
-        if (worldCoordinateManager != null)
-        {
-            worldCoordinateManager.SetVisualsActive(currentMode == Mode.SetupWorld);
-        }
-
-        // Control RaycastSurfaceFinder visuals (originVisual, directionVisual, previewVisual)
-        if (surfaceFinder != null)
-        {
-            surfaceFinder.SetVisualsActive(currentMode == Mode.Grid);
-        }
+        optimizeSession?.ResetHistory();
+        optimizeVisualizer?.HideHints();
+        modeDisplayUI?.UpdateGraph(null, -1, -1, false);
     }
 }

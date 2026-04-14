@@ -16,6 +16,8 @@ public class EdgeBehaviour : NetworkBehaviour
 
     // For delayed visual show (prevents "fly-in" effect on clients)
     private Renderer[] allRenderers;
+    private NetworkVariable<ulong>.OnValueChangedDelegate _onNodeAChanged;
+    private NetworkVariable<ulong>.OnValueChangedDelegate _onNodeBChanged;
 
     void Awake()
     {
@@ -37,8 +39,10 @@ public class EdgeBehaviour : NetworkBehaviour
         // Hide visuals immediately for networked objects (prevents "fly-in" effect)
         SetRenderersVisible(false);
 
-        nodeAId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
-        nodeBId.OnValueChanged += (oldVal, newVal) => ConnectNodes();
+        _onNodeAChanged = (oldVal, newVal) => ConnectNodes();
+        _onNodeBChanged = (oldVal, newVal) => ConnectNodes();
+        nodeAId.OnValueChanged += _onNodeAChanged;
+        nodeBId.OnValueChanged += _onNodeBChanged;
         ConnectNodes();
 
         // If nodes not found yet (late join), retry until connected
@@ -67,14 +71,14 @@ public class EdgeBehaviour : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        if (nodeA != null && nodeA.connectedEdges.Contains(this))
-        {
+        // Unsubscribe NetworkVariable callbacks to prevent accumulation over reconnections
+        if (_onNodeAChanged != null) { nodeAId.OnValueChanged -= _onNodeAChanged; _onNodeAChanged = null; }
+        if (_onNodeBChanged != null) { nodeBId.OnValueChanged -= _onNodeBChanged; _onNodeBChanged = null; }
+
+        if (nodeA != null && nodeA.connectedEdges != null && nodeA.connectedEdges.Contains(this))
             nodeA.connectedEdges.Remove(this);
-        }
-        if (nodeB != null && nodeB.connectedEdges.Contains(this))
-        {
+        if (nodeB != null && nodeB.connectedEdges != null && nodeB.connectedEdges.Contains(this))
             nodeB.connectedEdges.Remove(this);
-        }
     }
 
     void ConnectNodes()
