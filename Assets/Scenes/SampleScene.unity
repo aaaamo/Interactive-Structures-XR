@@ -1574,12 +1574,13 @@ MonoBehaviour:
   markerTransform: {fileID: 256993558}
   modeText: {fileID: 535932914}
   structuralAnalyzer: {fileID: 335742038}
+  optimizeVisualizer: {fileID: 1964602098}
   gridRenderer: {fileID: 2087109988}
   surfaceFinder: {fileID: 2110556239}
   worldCoordinateManager: {fileID: 721712519}
   markerController: {fileID: 1707571425}
   ghostNodePrefab: {fileID: 6975473497868493926, guid: fdfe58b40bb8b7145919af91cbbbb5af, type: 3}
-  ghostMaterial: {fileID: 0}
+  ghostMaterial: {fileID: 2100000, guid: 9a017291f0ac9364eabe5b91e7661a05, type: 2}
   modeDisplayUI: {fileID: 0}
   unifiedTutorial: {fileID: 207147543}
   networkConnect: {fileID: 0}
@@ -2289,6 +2290,58 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9af9ea683544b184083cef283557012d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1964602097
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1964602099}
+  - component: {fileID: 1964602098}
+  m_Layer: 0
+  m_Name: OptimizeVisualizer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1964602098
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1964602097}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c36226e434c79a849908912c58b746e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::OptimizeVisualizer
+  structuralAnalyzer: {fileID: 335742038}
+  graphManager: {fileID: 2075418298}
+  ghostMaterial: {fileID: 2100000, guid: 9a017291f0ac9364eabe5b91e7661a05, type: 2}
+  showGhost: 1
+  ghostSteps: 10
+  ghostStepSize: 0.005
+  maxArrowLength: 0.3
+  minArrowLength: 0.02
+--- !u!4 &1964602099
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1964602097}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2009882094 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 100004, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
@@ -4350,3 +4403,4 @@ SceneRoots:
   - {fileID: 1031855972}
   - {fileID: 721712520}
   - {fileID: 726456084}
+  - {fileID: 1964602099}

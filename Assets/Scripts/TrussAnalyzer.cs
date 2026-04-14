@@ -82,7 +82,9 @@ public static class TrussAnalyzer
         for (int i = 0; i < numDOF; i++)
         {
             if (!isFixed[i])
+            {
                 freeDOFs.Add(i);
+            }
         }
 
         if (freeDOFs.Count == 0)

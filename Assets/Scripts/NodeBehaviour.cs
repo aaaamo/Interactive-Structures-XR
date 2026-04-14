@@ -52,7 +52,9 @@ public class NodeBehaviour : NetworkBehaviour
     void Awake()
     {
         if (connectedEdges == null)
+        {
             connectedEdges = new List<EdgeBehaviour>();
+        }
 
         // Cache camera for billboarding
         if (Camera.main != null) mainCameraTransform = Camera.main.transform;

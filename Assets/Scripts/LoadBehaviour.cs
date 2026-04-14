@@ -22,7 +22,9 @@ public class LoadBehaviour : NetworkBehaviour
     {
         // Automatically find the arrow child if not assigned
         if (arrow == null && transform.childCount > 0)
+        {
             arrow = transform.GetChild(0);
+        }
     }
 
     public override void OnNetworkSpawn()

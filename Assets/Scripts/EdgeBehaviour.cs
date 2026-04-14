@@ -21,7 +21,9 @@ public class EdgeBehaviour : NetworkBehaviour
     {
         edgeTransform = transform;
         if (edgeTransform == null)
+        {
             Debug.LogError("Edge transform missing!");
+        }
 
         // Cache all renderers for visibility control
         allRenderers = GetComponentsInChildren<Renderer>(true);
@@ -66,9 +68,13 @@ public class EdgeBehaviour : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         if (nodeA != null && nodeA.connectedEdges.Contains(this))
+        {
             nodeA.connectedEdges.Remove(this);
+        }
         if (nodeB != null && nodeB.connectedEdges.Contains(this))
+        {
             nodeB.connectedEdges.Remove(this);
+        }
     }
 
     void ConnectNodes()
@@ -104,7 +110,9 @@ public class EdgeBehaviour : NetworkBehaviour
         foreach (var renderer in allRenderers)
         {
             if (renderer != null)
+            {
                 renderer.enabled = visible;
+            }
         }
     }
 
@@ -128,11 +136,17 @@ public class EdgeBehaviour : NetworkBehaviour
         Vector3 end;
 
         if (nodeB != null)
+        {
             end = nodeB.transform.position;
+        }
         else if (tempEnd.HasValue)
+        {
             end = tempEnd.Value;
+        }
         else
+        {
             return; // nothing to update
+        }
 
         PositionEdge(edgeTransform, start, end);
     }

@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using Unity.Netcode;
+using System;
 
 public class OVRGraphController : MonoBehaviour
 {
-    public enum Mode { Network, SetupWorld, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import }
+    public enum Mode { Network, SetupWorld, AddNode, AddEdge, AddLoad, ToggleSupport, Move, Delete, Grab, Analyze, Grid, Import, Optimize }
     public Mode currentMode = Mode.Network;
     public enum GridAxis { X, Y, Z, Spacing }
     public GridAxis currentGridAxis = GridAxis.X;
@@ -16,6 +17,7 @@ public class OVRGraphController : MonoBehaviour
     public Transform markerTransform;
     public TextMeshPro modeText;
     public StructuralAnalyzer structuralAnalyzer;
+    public OptimizeVisualizer optimizeVisualizer;
     public GridPointRenderer gridRenderer;
     public RaycastSurfaceFinder surfaceFinder;
     public WorldCoordinateManager worldCoordinateManager;
@@ -55,9 +57,13 @@ public class OVRGraphController : MonoBehaviour
         {
             graphManager = FindObjectOfType<GraphManager>();
             if (graphManager == null)
+            {
                 Debug.LogError("[OVRGraphController] GraphManager not found in scene!");
+            }
             else
+            {
                 Debug.Log("[OVRGraphController] GraphManager auto-assigned");
+            }
         }
 
         UpdateModeText();
@@ -76,7 +82,9 @@ public class OVRGraphController : MonoBehaviour
         {
             markerController = markerTransform.GetComponent<MarkerController>();
             if (markerController == null)
+            {
                 markerController = markerTransform.gameObject.AddComponent<MarkerController>();
+            }
         }
         markerController?.SetModeColor(currentMode);
 
@@ -95,7 +103,7 @@ public class OVRGraphController : MonoBehaviour
             return;
         }
 
-        // Network 모드일 때는 네트워크 UI만 처리
+        // In Network mode, only handle network UI
         if (currentMode == Mode.Network)
         {
             HandleModeSwitch();
@@ -103,21 +111,21 @@ public class OVRGraphController : MonoBehaviour
             return;
         }
 
-        // 네트워크 연결 상태 확인
+        // Check network connection status
         bool isConnected = NetworkManager.Singleton != null &&
                           (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
 
         HandleModeSwitch();
 
-        // Analyze 모드는 네트워크 연결 없이도 작동 (로컬 분석)
-        if (currentMode == Mode.Analyze)
+        // Analyze/Optimize modes work without network connection (local computation)
+        if (currentMode == Mode.Analyze || currentMode == Mode.Optimize)
         {
             HandleTriggerInput();
             UpdateModeText();
             return;
         }
 
-        // 그 외 모드는 네트워크 연결 필요
+        // All other modes require network connection
         if (!isConnected)
         {
             UpdateModeText();
@@ -140,13 +148,11 @@ public class OVRGraphController : MonoBehaviour
 
         if (rightThumbAxis.x > 0.7f)
         {
-            Debug.Log($"[OVRGraphController] CycleMode +1 from {currentMode}");
             CycleMode(1);
             lastThumbTime = Time.time;
         }
         else if (rightThumbAxis.x < -0.7f)
         {
-            Debug.Log($"[OVRGraphController] CycleMode -1 from {currentMode}");
             CycleMode(-1);
             lastThumbTime = Time.time;
         }
@@ -174,9 +180,13 @@ public class OVRGraphController : MonoBehaviour
 
             // Also toggle grid visibility to match snap state
             if (gridRenderer.isSnapEnabled && !gridRenderer.isActive)
+            {
                 gridRenderer.ShowGrid();
+            }
             else if (!gridRenderer.isSnapEnabled && gridRenderer.isActive)
+            {
                 gridRenderer.HideGrid();
+            }
             return;
         }
 
@@ -292,13 +302,25 @@ public class OVRGraphController : MonoBehaviour
             structuralAnalyzer?.resultsDisplay.gameObject.SetActive(false);
             structuralAnalyzer?.ClearVisuals();
         }
+
+        // Optimize mode: show/hide gradient hints
+        if (currentMode == Mode.Optimize)
+        {
+            optimizeVisualizer?.ShowHints();
+        }
+        else
+        {
+            optimizeVisualizer?.HideHints();
+        }
     }
 
     void ShowAnalyzePrompt()
     {
         // Simple text prompt if no UI panel is set up
         if (modeText != null)
+        {
             modeText.text = "Mode: Analyze\nPress TRIGGER to run analysis\nPress GRIP to cancel";
+        }
     }
 
     void UpdateModeText()
@@ -331,7 +353,7 @@ public class OVRGraphController : MonoBehaviour
                 }
             }
 
-            // 네트워크 연결 안 됐으면 경고 표시
+            // Show warning if not connected
             bool connected = NetworkManager.Singleton != null &&
                             (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer);
             if (!connected && currentMode != Mode.Network)
@@ -351,7 +373,9 @@ public class OVRGraphController : MonoBehaviour
     {
         bool rightTriggerPressed = OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
         if (rightTriggerPressed && !triggerHeldLastFrame)
+        {
             OnTriggerPressed();
+        }
         triggerHeldLastFrame = rightTriggerPressed;
 
         // Also check for grip button in Analyze mode (cancel)
@@ -366,8 +390,6 @@ public class OVRGraphController : MonoBehaviour
 
     void OnTriggerPressed()
     {
-        Debug.Log($"[OVRGraphController] OnTriggerPressed - Mode: {currentMode}");
-
         switch (currentMode)
         {
             case Mode.SetupWorld:
@@ -377,7 +399,6 @@ public class OVRGraphController : MonoBehaviour
                 }
                 break;
             case Mode.AddNode:
-                Debug.Log($"[OVRGraphController] Calling CreateNodeServerRpc - GraphManager IsSpawned: {graphManager.IsSpawned}");
                 // Convert world position to local position (ParentWorld basis) for network sync
                 Vector3 worldPos = GetGridPoint(markerTransform.position);
                 Vector3 localPos = worldCoordinateManager.WorldToLocal(worldPos);
@@ -386,7 +407,9 @@ public class OVRGraphController : MonoBehaviour
                 markerController?.Pulse();
                 // Notify tutorial system of action
                 if (unifiedTutorial != null)
+                {
                     unifiedTutorial.OnActionPerformed(Mode.AddNode);
+                }
                 break;
             case Mode.AddEdge:
                 HandleAddEdge();
@@ -402,7 +425,9 @@ public class OVRGraphController : MonoBehaviour
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Medium);
                     // Notify tutorial system of action
                     if (unifiedTutorial != null)
+                    {
                         unifiedTutorial.OnActionPerformed(Mode.ToggleSupport);
+                    }
                 }
                 break;
             case Mode.Move:
@@ -431,6 +456,7 @@ public class OVRGraphController : MonoBehaviour
                 {
                     graphManager.DeleteNetworkObjectServerRpc(nodeToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
+                    optimizeVisualizer?.OnStructureChanged();
                     break;
                 }
                 var edgeToDelete = GetEdgeAtMarker();
@@ -438,6 +464,7 @@ public class OVRGraphController : MonoBehaviour
                 {
                     graphManager.DeleteNetworkObjectServerRpc(edgeToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
+                    optimizeVisualizer?.OnStructureChanged();
                     break;
                 }
                 var loadToDelete = GetLoadAtMarker();
@@ -445,12 +472,15 @@ public class OVRGraphController : MonoBehaviour
                 {
                     graphManager.DeleteNetworkObjectServerRpc(loadToDelete.NetworkObjectId);
                     HapticFeedback.Trigger(HapticFeedback.HapticType.Strong);
+                    optimizeVisualizer?.OnStructureChanged();
                 }
                 break;
             case Mode.Grab:
                 NodeBehaviour nodeToGrab = GetNodeAtMarker();
                 if (nodeToGrab != null)
+                {
                     StartCoroutine(GrabStructureCoroutine(nodeToGrab));
+                }
                 else
                 {
                     EdgeBehaviour edgeToGrab = GetEdgeAtMarker();
@@ -468,6 +498,10 @@ public class OVRGraphController : MonoBehaviour
 
                     ConfirmAnalysis();
                 }
+                break;
+            case Mode.Optimize:
+                // Trigger manually refreshes hints (useful after network-synced changes)
+                optimizeVisualizer?.OnStructureChanged();
                 break;
             case Mode.Grid:
                 if (surfaceFinder != null)
@@ -558,6 +592,7 @@ public class OVRGraphController : MonoBehaviour
             {
                 graphManager.CreateEdgeServerRpc(firstSelectedNode.NetworkObjectId, node.NetworkObjectId);
                 HapticFeedback.Trigger(HapticFeedback.HapticType.Success);
+                optimizeVisualizer?.OnStructureChanged();
             }
             else
             {
@@ -609,13 +644,16 @@ public class OVRGraphController : MonoBehaviour
             VisualFeedbackManager.Instance?.ClearSelection();
             firstLoadNode = null;
             if (ghostLoad != null) { Destroy(ghostLoad); ghostLoad = null; }
+            optimizeVisualizer?.OnStructureChanged();
         }
     }
 
     void UpdateTemporaryEdge()
     {
         if (tempEdge != null && firstSelectedNode != null && markerTransform != null)
+        {
             tempEdge.UpdateEdgePosition(markerTransform.position);
+        }
     }
 
     void UpdateTemporaryLoad()
@@ -731,6 +769,8 @@ public class OVRGraphController : MonoBehaviour
             // Edges update automatically in their Update() loop
             yield return null;
         }
+
+        optimizeVisualizer?.OnStructureChanged();
     }
 
     IEnumerator MoveEdgeCoroutine(EdgeBehaviour edge)
@@ -758,6 +798,8 @@ public class OVRGraphController : MonoBehaviour
             }
             yield return null;
         }
+
+        optimizeVisualizer?.OnStructureChanged();
     }
 
     IEnumerator MoveLoadCoroutine(LoadBehaviour load)
@@ -809,7 +851,9 @@ public class OVRGraphController : MonoBehaviour
 
         Dictionary<NodeBehaviour, Vector3> offsets = new Dictionary<NodeBehaviour, Vector3>();
         foreach (var node in connectedNodes)
+        {
             offsets[node] = node.transform.position - markerTransform.position;
+        }
         while (OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {
             foreach (var node in connectedNodes)
@@ -818,9 +862,13 @@ public class OVRGraphController : MonoBehaviour
                 // Convert to local position for network sync
                 Vector3 localPos = worldCoordinateManager.WorldToLocal(newPos);
                 if (NetworkManager.Singleton.IsServer)
+                {
                     node.transform.localPosition = localPos;
+                }
                 else
+                {
                     node.MoveServerRpc(localPos);
+                }
             }
             yield return null;
         }
@@ -912,7 +960,9 @@ public class OVRGraphController : MonoBehaviour
                 nodeBehaviour.enabled = false;
                 // Hide text label on ghost node
                 if (nodeBehaviour.nodeLabel != null)
+                {
                     nodeBehaviour.nodeLabel.gameObject.SetActive(false);
+                }
             }
         }
         else if (ghostNode != null)
@@ -1094,7 +1144,9 @@ public class OVRGraphController : MonoBehaviour
         {
             EdgeBehaviour edge = GetEdgeAtMarker();
             if (edge != null)
+            {
                 startNode = edge.nodeA ?? edge.nodeB;
+            }
         }
 
         if (startNode != null)
@@ -1156,10 +1208,14 @@ public class OVRGraphController : MonoBehaviour
     {
         // Control WorldCoordinateManager visuals (originVisual, directionVisual, previewVisual)
         if (worldCoordinateManager != null)
+        {
             worldCoordinateManager.SetVisualsActive(currentMode == Mode.SetupWorld);
+        }
 
         // Control RaycastSurfaceFinder visuals (originVisual, directionVisual, previewVisual)
         if (surfaceFinder != null)
+        {
             surfaceFinder.SetVisualsActive(currentMode == Mode.Grid);
+        }
     }
 }

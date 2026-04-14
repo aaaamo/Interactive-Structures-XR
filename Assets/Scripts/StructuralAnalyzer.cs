@@ -68,7 +68,9 @@ public class StructuralAnalyzer : MonoBehaviour
                 foreach (var load in node.loads)
                 {
                     if (load != null)
+                    {
                         Debug.Log($"[StructuralAnalyzer] Node at {node.transform.position} has load: dir={load.direction}, mag={load.magnitude}");
+                    }
                 }
             }
         }
@@ -135,7 +137,9 @@ public class StructuralAnalyzer : MonoBehaviour
 
             // Yield every few structures for responsiveness
             if (i % 5 == 0)
+            {
                 yield return null;
+            }
         }
 
         resultNow = results;
@@ -198,7 +202,9 @@ public class StructuralAnalyzer : MonoBehaviour
         foreach (var startNode in allNodes)
         {
             if (startNode == null || visited.Contains(startNode))
+            {
                 continue;
+            }
 
             // BFS to find all connected nodes
             HashSet<NodeBehaviour> subgraphNodes = new HashSet<NodeBehaviour>();
@@ -255,7 +261,7 @@ public class StructuralAnalyzer : MonoBehaviour
         return subgraphs;
     }
 
-    StructureData BuildStructureData(NodeBehaviour[] nodes, EdgeBehaviour[] edges)
+    public static StructureData BuildStructureData(NodeBehaviour[] nodes, EdgeBehaviour[] edges)
     {
         StructureData data = new StructureData();
         data.nodeIndexMap = new Dictionary<NodeBehaviour, int>();
@@ -274,7 +280,9 @@ public class StructuralAnalyzer : MonoBehaviour
         data.edges = new List<EdgeBehaviour>();
         data.adjacency = new List<List<int>>();
         for (int i = 0; i < data.nodes.Count; i++)
+        {
             data.adjacency.Add(new List<int>());
+        }
 
         foreach (var edge in edges)
         {
@@ -296,7 +304,9 @@ public class StructuralAnalyzer : MonoBehaviour
         for (int i = 0; i < data.nodes.Count; i++)
         {
             if (data.nodes[i].isSupport)
+            {
                 data.supportNodes.Add(i);
+            }
         }
 
         data.nodeLoads = new Dictionary<int, Vector3>();
@@ -315,7 +325,9 @@ public class StructuralAnalyzer : MonoBehaviour
                 }
             }
             if (totalLoad.magnitude > 0.001f)
+            {
                 data.nodeLoads[i] = totalLoad;
+            }
         }
 
         return data;
@@ -535,7 +547,9 @@ public class StructuralAnalyzer : MonoBehaviour
     void DisplayResults(string message)
     {
         if (resultsDisplay != null)
+        {
             resultsDisplay.text = message;
+        }
     }
 }
 

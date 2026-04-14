@@ -10,6 +10,7 @@ public class ModeDisplayUI : MonoBehaviour
     public TextMeshPro modeNameText;
     public TextMeshPro hintText;
     public TextMeshPro iconText; // Using TextMeshPro with unicode symbols as icons
+    public TextMeshPro complianceText;
 
     [Header("Mode Colors")]
     public Color networkColor = new Color(0.5f, 0.5f, 0.5f);
@@ -24,6 +25,7 @@ public class ModeDisplayUI : MonoBehaviour
     public Color analyzeColor = new Color(1f, 1f, 1f);
     public Color gridColor = new Color(0.7f, 0.7f, 0.7f);
     public Color importColor = new Color(0.5f, 0.9f, 1f);
+    public Color optimizeColor = new Color(1f, 0.85f, 0.0f);
 
     private static readonly string[] modeIcons = {
         "\u26A1",  // Network - Lightning bolt
@@ -37,7 +39,8 @@ public class ModeDisplayUI : MonoBehaviour
         "\u270B",  // Grab - Hand
         "\u2699",  // Analyze - Gear
         "\u2637",  // Grid - Grid symbol
-        "\u2913"   // Import - Down arrow to bar (download)
+        "\u2913",  // Import - Down arrow to bar (download)
+        "\u2B50"   // Optimize - Star
     };
 
     private static readonly string[] modeHints = {
@@ -52,7 +55,8 @@ public class ModeDisplayUI : MonoBehaviour
         "Point and TRIGGER to move structure",
         "TRIGGER to analyze | GRIP to cancel",
         "TRIGGER to set grid anchors",
-        "TRIGGER to open file browser"
+        "TRIGGER to open file browser",
+        "Follow arrows to optimize | TRIGGER to refresh"
     };
 
     /// <summary>
@@ -110,6 +114,17 @@ public class ModeDisplayUI : MonoBehaviour
     }
 
     /// <summary>
+    /// Update the always-visible compliance readout.
+    /// Call with valid=false when the structure cannot be analyzed.
+    /// </summary>
+    public void SetCompliance(float compliance, bool valid)
+    {
+        if (complianceText == null) { return; }
+        complianceText.text = valid ? $"C = {compliance:G4}" : "C = --";
+        complianceText.fontSize = 0.04f;
+    }
+
+    /// <summary>
     /// Clear custom message and restore hint
     /// </summary>
     public void ClearMessage(OVRGraphController.Mode mode)
@@ -138,6 +153,7 @@ public class ModeDisplayUI : MonoBehaviour
             case OVRGraphController.Mode.Analyze: return analyzeColor;
             case OVRGraphController.Mode.Grid: return gridColor;
             case OVRGraphController.Mode.Import: return importColor;
+            case OVRGraphController.Mode.Optimize: return optimizeColor;
             default: return Color.white;
         }
     }

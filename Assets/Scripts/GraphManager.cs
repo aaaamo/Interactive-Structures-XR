@@ -176,7 +176,9 @@ public class GraphManager : NetworkBehaviour
             netObj.Spawn();
 
             if (ParentWorld != null && ParentWorld.GetComponent<NetworkObject>() != null)
+            {
                 netObj.TrySetParent(ParentWorld.GetComponent<NetworkObject>());
+            }
 
             if (nodeBehaviour != null)
             {
